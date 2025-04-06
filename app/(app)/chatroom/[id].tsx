@@ -8,128 +8,46 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
-import { Send, MapPin, Users, Camera, Mic, Smile, Paperclip } from 'lucide-react-native';
+import { Send, MapPin, Users, Camera, Mic, Smile, Paperclip, Bot } from 'lucide-react-native';
+import { supabase } from '~/lib/supabase';
+import { sendMessageToBot, isBot, getBotCommands } from '~/lib/bot';
 
-// Mock chat message type
+// Define types for Supabase data
+interface Profile {
+  username: string;
+  avatar_url: string | null;
+}
+
+interface MessageData {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  profiles: Profile;
+}
+
+// Chat message type for rendered UI
 interface ChatMessage {
   id: string;
-  userId: string;
+  user_id: string;
+  userId?: string; // For compatibility with rendering code
   userName: string;
   userAvatar: string | null;
-  text: string;
-  timestamp: Date;
+  content: string;
+  text?: string; // For compatibility with rendering code
+  created_at: string;
+  timestamp?: Date; // For compatibility with rendering code
   isCurrentUser: boolean;
 }
 
-// Mock data for messages
-const generateMockMessages = (chatroomId: string): ChatMessage[] => {
-  const baseMessages = [
-    {
-      id: '1',
-      userId: 'user1',
-      userName: 'Maria Santos',
-      userAvatar: null,
-      text: 'Hello everyone! How are you all doing today?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-      isCurrentUser: false,
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      userName: 'Juan Dela Cruz',
-      userAvatar: null,
-      text: 'I\'m doing great! Just visited the local market here in our province.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-      isCurrentUser: false,
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      userName: 'Anna Reyes',
-      userAvatar: null,
-      text: 'Does anyone know if there are any events happening this weekend?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 45), // 45 minutes ago
-      isCurrentUser: false,
-    },
-    {
-      id: '4',
-      userId: 'current-user',
-      userName: 'Current User',
-      userAvatar: null,
-      text: 'I heard there\'s a festival happening in the town plaza!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-      isCurrentUser: true,
-    },
-    {
-      id: '5',
-      userId: 'user1',
-      userName: 'Maria Santos',
-      userAvatar: null,
-      text: 'Yes, that\'s right! It starts at 6pm on Saturday.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-      isCurrentUser: false,
-    },
-    {
-      id: '6',
-      userId: 'user2',
-      userName: 'Juan Dela Cruz',
-      userAvatar: null,
-      text: 'Will there be food stalls as well?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 10), // 10 minutes ago
-      isCurrentUser: false,
-    },
-    {
-      id: '7',
-      userId: 'current-user',
-      userName: 'Current User',
-      userAvatar: null,
-      text: 'Yes, I saw them setting up food stalls today. There should be lots of local cuisine to try!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-      isCurrentUser: true,
-    },
-  ];
-
-  // Custom message for specific chatrooms to make it feel more realistic
-  if (chatroomId === 'NCR-1') {
-    baseMessages.push({
-      id: '8',
-      userId: 'user3',
-      userName: 'Anna Reyes',
-      userAvatar: null,
-      text: 'I hear Manila Bay has a beautiful sunset view these days. Anyone planning to visit?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 minutes ago
-      isCurrentUser: false,
-    });
-  } else if (chatroomId === 'R7-2') {
-    baseMessages.push({
-      id: '8',
-      userId: 'user3',
-      userName: 'Anna Reyes',
-      userAvatar: null,
-      text: 'Cebu has amazing beaches! Anyone been to Moalboal recently?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 minutes ago
-      isCurrentUser: false,
-    });
-  } else if (chatroomId === 'R3-3') {
-    baseMessages.push({
-      id: '8',
-      userId: 'user3',
-      userName: 'Anna Reyes',
-      userAvatar: null,
-      text: 'The Barasoain Church in Bulacan is a must-visit historical site!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 minutes ago
-      isCurrentUser: false,
-    });
-  }
-
-  return baseMessages;
-};
+// Function to fetch messages from Supabase
 
 export default function ChatroomScreen() {
   const { id, provinceName, regionName } = useLocalSearchParams();
@@ -140,33 +58,149 @@ export default function ChatroomScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Simulate loading messages
-    setMessages(generateMockMessages(id as string));
-    
-    // Simulate online user count
-    setOnlineUsers(Math.floor(Math.random() * 30) + 10);
-  }, [id]);
+    const fetchMessages = async () => {
+      try {
+        if (!id) return;
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
-    
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      userId: 'current-user',
-      userName: user?.email?.split('@')[0] || 'User',
-      userAvatar: null,
-      text: newMessage.trim(),
-      timestamp: new Date(),
-      isCurrentUser: true,
+        // Fetch messages from the database
+        const { data: messagesData, error: messagesError } = await supabase
+          .from('messages')
+          .select('id, content, created_at, user_id, profiles(username, avatar_url)')
+          .eq('chatroom_id', id)
+          .order('created_at', { ascending: true });
+
+        if (messagesError) {
+          console.error('Error fetching messages:', messagesError);
+          return;
+        }
+
+        // Fetch online users count
+        const { data: onlineData, error: onlineError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('is_online', true);
+
+        if (onlineError) {
+          console.error('Error fetching online users:', onlineError);
+        } else {
+          setOnlineUsers(onlineData?.length || 0);
+        }
+
+        // Map the data to our ChatMessage interface
+        const formattedMessages = messagesData?.map(msg => {
+          // Access the first profile item if it's an array, otherwise use the object directly
+          const profile = Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles;
+          
+          return {
+            id: msg.id,
+            user_id: msg.user_id,
+            userId: msg.user_id, // For compatibility with existing code
+            userName: profile?.username || 'Anonymous User',
+            userAvatar: profile?.avatar_url,
+            content: msg.content,
+            text: msg.content, // For compatibility with existing code
+            created_at: msg.created_at,
+            timestamp: new Date(msg.created_at), // For compatibility with existing code
+            isCurrentUser: msg.user_id === user?.id
+          };
+        }) || [];
+
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error('Error in fetchMessages:', error);
+      }
     };
+
+    fetchMessages();
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('public:messages')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `chatroom_id=eq.${id}`
+      }, async (payload) => {
+        // When a new message is added, fetch the user info
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', payload.new.user_id)
+          .single();
+
+        const newMessage: ChatMessage = {
+          id: payload.new.id,
+          user_id: payload.new.user_id,
+          userId: payload.new.user_id,
+          userName: userData?.username || 'Anonymous User',
+          userAvatar: userData?.avatar_url,
+          content: payload.new.content,
+          text: payload.new.content,
+          created_at: payload.new.created_at,
+          timestamp: new Date(payload.new.created_at),
+          isCurrentUser: payload.new.user_id === user?.id
+        };
+
+        setMessages(prev => [...prev, newMessage]);
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [id, user?.id]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !user?.id || !id) return;
     
-    setMessages(prev => [...prev, newMsg]);
-    setNewMessage('');
-    
-    // Scroll to the bottom
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    try {
+      const messageContent = newMessage.trim();
+      
+      // Check if this is a bot command
+      if (messageContent.startsWith('/')) {
+        // First insert the user's command as a message
+        await supabase
+          .from('messages')
+          .insert({
+            chatroom_id: id,
+            user_id: user.id,
+            content: messageContent
+          });
+        
+        // Call the bot with this command
+        const botResponse = await sendMessageToBot(messageContent, user.id, id as string);
+        
+        if (!botResponse) {
+          console.log('No response from bot or error occurred');
+        }
+        // Note: The bot response will be handled by the subscription
+      } else {
+        // Regular message, just insert it
+        const { error } = await supabase
+          .from('messages')
+          .insert({
+            chatroom_id: id,
+            user_id: user.id,
+            content: messageContent
+          });
+
+        if (error) {
+          console.error('Error sending message:', error);
+          return;
+        }
+      }
+      
+      // Clear the input field
+      setNewMessage('');
+      
+      // Scroll to the bottom
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error) {
+      console.error('Error in sendMessage:', error);
+    }
   };
 
   const formatTime = (date: Date) => {
@@ -178,6 +212,19 @@ export default function ChatroomScreen() {
     } else {
       return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     }
+  };
+  
+  // Show bot commands when user taps the bot button
+  const showBotCommands = () => {
+    const commands = getBotCommands();
+    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('
+');
+    
+    Alert.alert(
+      'UzZap Bot Commands',
+      commandsText,
+      [{ text: 'OK', style: 'default' }]
+    );
   };
 
   return (
@@ -191,6 +238,9 @@ export default function ChatroomScreen() {
           title: provinceName as string || 'Chatroom',
           headerRight: () => (
             <View className="flex-row items-center">
+              <TouchableOpacity onPress={showBotCommands} className="mr-3">
+                <Bot size={20} className="text-primary" />
+              </TouchableOpacity>
               <Badge className="mr-2" variant="outline">
                 <Users size={14} className="mr-1" />
                 <Text className="text-xs">{onlineUsers}</Text>
@@ -228,18 +278,32 @@ export default function ChatroomScreen() {
               style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
             >
               {!item.isCurrentUser && (
-                <Text className="text-xs text-muted-foreground mb-1">{item.userName}</Text>
+                <View className="flex-row items-center mb-1">
+                  <Text className="text-xs text-muted-foreground">{item.userName}</Text>
+                  {isBot(item.user_id) && (
+                    <Badge className="ml-1 py-0" variant="secondary">
+                      <Bot size={10} className="mr-1" />
+                      <Text className="text-[9px]">BOT</Text>
+                    </Badge>
+                  )}
+                </View>
               )}
               
               <View 
                 className={`rounded-2xl p-3 ${
                   item.isCurrentUser 
                     ? 'bg-primary' 
-                    : 'bg-muted border border-border'
+                    : isBot(item.user_id)
+                      ? 'bg-secondary border border-border'
+                      : 'bg-muted border border-border'
                 }`}
               >
                 <Text 
-                  className={item.isCurrentUser ? 'text-primary-foreground' : 'text-foreground'}
+                  className={item.isCurrentUser 
+                    ? 'text-primary-foreground' 
+                    : isBot(item.user_id) 
+                      ? 'text-secondary-foreground' 
+                      : 'text-foreground'}
                 >
                   {item.text}
                 </Text>
@@ -249,7 +313,7 @@ export default function ChatroomScreen() {
                 className="text-xs text-muted-foreground mt-1"
                 style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
               >
-                {formatTime(item.timestamp)}
+                {formatTime(item.timestamp || new Date(item.created_at))}
               </Text>
             </View>
           )}
@@ -259,14 +323,14 @@ export default function ChatroomScreen() {
         <View className="border-t border-border p-2 bg-background">
           <View className="flex-row items-center bg-muted rounded-full p-1">
             <View className="flex-row space-x-1 p-1">
+              <TouchableOpacity className="p-2" onPress={showBotCommands}>
+                <Bot size={22} className="text-primary" />
+              </TouchableOpacity>
               <TouchableOpacity className="p-2">
                 <Smile size={22} className="text-muted-foreground" />
               </TouchableOpacity>
               <TouchableOpacity className="p-2">
                 <Paperclip size={22} className="text-muted-foreground" />
-              </TouchableOpacity>
-              <TouchableOpacity className="p-2">
-                <Camera size={22} className="text-muted-foreground" />
               </TouchableOpacity>
             </View>
             

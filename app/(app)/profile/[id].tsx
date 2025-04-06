@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, TextInput, Alert } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
@@ -8,6 +8,7 @@ import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { ArrowLeft, User, MapPin, Calendar, MessageSquare, Edit2, Camera, AtSign } from 'lucide-react-native';
+import { supabase } from '~/lib/supabase';
 
 interface UserProfile {
   id: string;
@@ -23,71 +24,7 @@ interface UserProfile {
   isFollowing: boolean;
 }
 
-const mockUserProfile = (userId: string, username?: string, isSelf = false): UserProfile => {
-  // Create different mock profiles based on userId or generate a profile for the current user
-  if (isSelf) {
-    return {
-      id: userId,
-      username: username || 'uzzap_user',
-      name: 'UzZap User',
-      bio: 'This is your personal profile. Edit your details and share more about yourself!',
-      location: 'Manila, Philippines',
-      avatar: null,
-      joinDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30), // Joined 30 days ago
-      followerCount: 24,
-      followingCount: 56,
-      isSelf: true,
-      isFollowing: false
-    };
-  }
-
-  // For other profiles, provide mock data
-  const mockProfiles: Record<string, Partial<UserProfile>> = {
-    'default': {
-      name: username || 'UzZap User',
-      bio: 'Hello! I love connecting with people from all regions of the Philippines!',
-      location: 'Manila, NCR',
-      joinDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45), // Joined 45 days ago
-      followerCount: 28,
-      followingCount: 42,
-      isFollowing: false
-    },
-    '1': {
-      name: 'Maria Santos',
-      bio: 'Travel enthusiast | Food lover | Exploring the beautiful Philippines one province at a time',
-      location: 'Manila, NCR',
-      joinDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60), // Joined 60 days ago
-      followerCount: 125,
-      followingCount: 89,
-      isFollowing: true
-    },
-    '2': {
-      name: 'Juan Dela Cruz',
-      bio: 'Software developer from Cebu. Passionate about tech and connecting local communities.',
-      location: 'Cebu City, Cebu',
-      joinDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90), // Joined 90 days ago
-      followerCount: 86,
-      followingCount: 104,
-      isFollowing: true
-    }
-  };
-
-  const profile = mockProfiles[userId] || mockProfiles['default'];
-  
-  return {
-    id: userId,
-    username: username || `user_${userId}`,
-    name: profile.name || username || 'User',
-    bio: profile.bio || 'No bio yet',
-    location: profile.location || 'Philippines',
-    avatar: null,
-    joinDate: profile.joinDate || new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
-    followerCount: profile.followerCount || 0,
-    followingCount: profile.followingCount || 0,
-    isSelf: false,
-    isFollowing: profile.isFollowing || false
-  };
-};
+// Fetch a user profile from Supabase
 
 export default function ProfileScreen() {
   const { id, username } = useLocalSearchParams<{ id: string; username: string }>();
@@ -96,40 +33,161 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState<Partial<UserProfile>>({});
+  const [loading, setLoading] = useState(true);
   
   // Determine if this is the current user's profile
   const isSelfProfile = id === user?.id || id === 'me';
   
-  useEffect(() => {
-    // Load mock profile
-    const userProfile = mockUserProfile(
-      id || 'default', 
-      username || undefined, 
-      isSelfProfile
-    );
-    setProfile(userProfile);
-    setEditedProfile({
-      name: userProfile.name,
-      username: userProfile.username,
-      bio: userProfile.bio,
-      location: userProfile.location
-    });
-  }, [id, username, isSelfProfile]);
-  
-  const toggleFollow = () => {
-    if (!profile) return;
-    
-    setProfile({
-      ...profile,
-      isFollowing: !profile.isFollowing,
-      followerCount: profile.isFollowing 
-        ? profile.followerCount - 1 
-        : profile.followerCount + 1
-    });
+  // Fetch user profile from Supabase
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      
+      // Determine the actual user ID to fetch
+      const profileId = (isSelfProfile && user) ? user.id : id;
+      
+      if (!profileId) {
+        console.error('No profile ID available');
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch user profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, bio, avatar_url, created_at')
+        .eq('id', profileId)
+        .single();
+      
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch user location
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('location')
+        .eq('id', profileId)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user location:', userError);
+      }
+      
+      // Fetch follower and following counts
+      const { count: followerCount, error: followerError } = await supabase
+        .from('user_follows')
+        .select('follower_id', { count: 'exact' })
+        .eq('following_id', profileId);
+      
+      if (followerError) {
+        console.error('Error fetching follower count:', followerError);
+      }
+      
+      const { count: followingCount, error: followingError } = await supabase
+        .from('user_follows')
+        .select('following_id', { count: 'exact' })
+        .eq('follower_id', profileId);
+      
+      if (followingError) {
+        console.error('Error fetching following count:', followingError);
+      }
+      
+      // Check if current user is following this profile
+      let isFollowing = false;
+      if (!isSelfProfile && user?.id) {
+        const { data: followData, error: followError } = await supabase
+          .from('user_follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', profileId)
+          .single();
+        
+        isFollowing = !!followData;
+      }
+      
+      // Create user profile object
+      const userProfile: UserProfile = {
+        id: profileData.id,
+        username: profileData.username,
+        name: profileData.full_name || profileData.username,
+        bio: profileData.bio || '',
+        location: userData?.location || 'Philippines',
+        avatar: profileData.avatar_url,
+        joinDate: new Date(profileData.created_at),
+        followerCount: followerCount || 0,
+        followingCount: followingCount || 0,
+        isSelf: isSelfProfile,
+        isFollowing: isFollowing
+      };
+      
+      setProfile(userProfile);
+      setEditedProfile({
+        name: userProfile.name,
+        username: userProfile.username,
+        bio: userProfile.bio,
+        location: userProfile.location
+      });
+    } catch (error) {
+      console.error('Unexpected error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const saveProfile = () => {
-    if (!profile) return;
+  useEffect(() => {
+    fetchUserProfile();
+  }, [id, user?.id, isSelfProfile]);
+  
+  const toggleFollow = async () => {
+    if (!profile || !user?.id) return;
+    
+    try {
+      if (profile.isFollowing) {
+        // Unfollow user
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('following_id', profile.id);
+        
+        if (error) {
+          console.error('Error unfollowing user:', error);
+          return;
+        }
+      } else {
+        // Follow user
+        const { error } = await supabase
+          .from('user_follows')
+          .insert({
+            follower_id: user.id,
+            following_id: profile.id,
+            created_at: new Date().toISOString()
+          });
+        
+        if (error) {
+          console.error('Error following user:', error);
+          return;
+        }
+      }
+      
+      // Update local state
+      setProfile({
+        ...profile,
+        isFollowing: !profile.isFollowing,
+        followerCount: profile.isFollowing 
+          ? profile.followerCount - 1 
+          : profile.followerCount + 1
+      });
+    } catch (error) {
+      console.error('Unexpected error in toggleFollow:', error);
+    }
+  };
+  
+  const saveProfile = async () => {
+    if (!profile || !user?.id) return;
     
     // Validate fields (basic validation)
     if (!editedProfile.name?.trim()) {
@@ -142,14 +200,62 @@ export default function ProfileScreen() {
       return;
     }
     
-    // Update profile
-    setProfile({
-      ...profile,
-      ...editedProfile
-    });
-    
-    setIsEditing(false);
-    Alert.alert('Success', 'Profile updated successfully!');
+    try {
+      // Check if username is already taken (if changed)
+      if (editedProfile.username !== profile.username) {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', editedProfile.username)
+          .neq('id', user.id)
+          .single();
+        
+        if (existingUser) {
+          Alert.alert('Error', 'Username is already taken');
+          return;
+        }
+      }
+      
+      // Update profile in Supabase
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          username: editedProfile.username,
+          full_name: editedProfile.name,
+          bio: editedProfile.bio
+        })
+        .eq('id', user.id);
+      
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
+        Alert.alert('Error', 'Failed to update profile');
+        return;
+      }
+      
+      // Update location in users table
+      if (editedProfile.location !== profile.location) {
+        const { error: locationError } = await supabase
+          .from('users')
+          .update({ location: editedProfile.location })
+          .eq('id', user.id);
+        
+        if (locationError) {
+          console.error('Error updating location:', locationError);
+        }
+      }
+      
+      // Update local state
+      setProfile({
+        ...profile,
+        ...editedProfile
+      });
+      
+      setIsEditing(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error) {
+      console.error('Unexpected error in saveProfile:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    }
   };
   
   const formatJoinDate = (date: Date) => {
@@ -159,10 +265,11 @@ export default function ProfileScreen() {
     });
   };
   
-  if (!profile) {
+  if (!profile || loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <Text>Loading profile...</Text>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text className="mt-4">Loading profile...</Text>
       </View>
     );
   }

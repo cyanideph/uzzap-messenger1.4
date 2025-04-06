@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Image, TouchableOpacity, FlatList } from 'react-native';
+import { View, ScrollView, RefreshControl, Image, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { Text } from '~/components/ui/text';
 import { Card } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
@@ -8,73 +8,18 @@ import { Badge } from '~/components/ui/badge';
 import { Search, User, MapPin, MessageSquare, UserPlus } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '~/lib/auth-context';
+import { supabase } from '~/lib/supabase';
 
-// Mock data for people
-const MOCK_PEOPLE = [
-  {
-    id: '1',
-    name: 'Maria Santos',
-    username: 'maria_s',
-    avatar: null,
-    location: 'Manila, NCR',
-    isOnline: true,
-    mutualChatrooms: 3,
-  },
-  {
-    id: '2',
-    name: 'Juan Dela Cruz',
-    username: 'juan_dc',
-    avatar: null,
-    location: 'Cebu City, Cebu',
-    isOnline: true,
-    mutualChatrooms: 2,
-  },
-  {
-    id: '3',
-    name: 'Anna Reyes',
-    username: 'anna_r',
-    avatar: null,
-    location: 'Quezon City, NCR',
-    isOnline: false,
-    mutualChatrooms: 1,
-  },
-  {
-    id: '4',
-    name: 'Pedro Lim',
-    username: 'pedro_l',
-    avatar: null,
-    location: 'Davao City, Davao',
-    isOnline: false,
-    mutualChatrooms: 4,
-  },
-  {
-    id: '5',
-    name: 'Sofia Garcia',
-    username: 'sofia_g',
-    avatar: null,
-    location: 'Iloilo City, Iloilo',
-    isOnline: true,
-    mutualChatrooms: 2,
-  },
-  {
-    id: '6',
-    name: 'Miguel Tan',
-    username: 'miguel_t',
-    avatar: null,
-    location: 'Baguio City, Benguet',
-    isOnline: true,
-    mutualChatrooms: 1,
-  },
-  {
-    id: '7',
-    name: 'Lucia Mendoza',
-    username: 'lucia_m',
-    avatar: null,
-    location: 'Makati, NCR',
-    isOnline: false,
-    mutualChatrooms: 3,
-  },
-];
+// Interface for user profile data
+interface PersonProfile {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string | null;
+  location: string;
+  isOnline: boolean;
+  mutualChatrooms: number;
+}
 
 type TabType = 'all' | 'following' | 'suggested';
 
@@ -82,27 +27,145 @@ export default function PeopleScreen() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('all');
-  const [people, setPeople] = useState(MOCK_PEOPLE);
-  const [following, setFollowing] = useState<string[]>(['1', '3']); // Mock IDs of people the user follows
+  const [people, setPeople] = useState<PersonProfile[]>([]);
+  const [following, setFollowing] = useState<string[]>([]);
 
+  // Fetch people data from Supabase
+  const fetchPeople = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      
+      // Fetch all profiles except the current user
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url')
+        .neq('id', user.id);
+      
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        return;
+      }
+      
+      // Fetch users' online status and location
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, is_online, location')
+        .in('id', profilesData.map(profile => profile.id));
+      
+      if (usersError) {
+        console.error('Error fetching users data:', usersError);
+      }
+      
+      // Fetch following relationships
+      const { data: followingData, error: followingError } = await supabase
+        .from('user_follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+      
+      if (followingError) {
+        console.error('Error fetching following data:', followingError);
+      } else {
+        // Set the following state
+        setFollowing(followingData?.map(follow => follow.following_id) || []);
+      }
+      
+      // Map the data to our UI model
+      const formattedPeople: PersonProfile[] = profilesData.map(profile => {
+        const userData = usersData?.find(u => u.id === profile.id);
+        
+        // Get location from users table or default
+        let location = 'Unknown';
+        if (userData?.location) {
+          location = userData.location;
+        }
+        
+        return {
+          id: profile.id,
+          name: profile.full_name || profile.username,
+          username: profile.username,
+          avatar: profile.avatar_url,
+          location: location,
+          isOnline: userData?.is_online || false,
+          // In a real implementation, you would calculate this
+          // by checking which chatrooms both the current user and this user are in
+          mutualChatrooms: Math.floor(Math.random() * 5),
+        };
+      });
+      
+      setPeople(formattedPeople);
+    } catch (error) {
+      console.error('Unexpected error in fetchPeople:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+  
   useEffect(() => {
-    // Initial data load - in a real app, fetch from Supabase
-  }, []);
+    fetchPeople();
+    
+    // Set up subscription for real-time updates on user status
+    const subscription = supabase
+      .channel('public:users')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, () => {
+        // Refetch people data when a user's status changes
+        fetchPeople();
+      })
+      .subscribe();
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    fetchPeople();
   };
 
-  const toggleFollow = (id: string) => {
-    if (following.includes(id)) {
-      setFollowing(following.filter(userId => userId !== id));
-    } else {
-      setFollowing([...following, id]);
+  const toggleFollow = async (id: string) => {
+    if (!user?.id) return;
+    
+    try {
+      if (following.includes(id)) {
+        // Unfollow user
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('following_id', id);
+        
+        if (error) {
+          console.error('Error unfollowing user:', error);
+          return;
+        }
+        
+        // Update local state
+        setFollowing(following.filter(userId => userId !== id));
+      } else {
+        // Follow user
+        const { error } = await supabase
+          .from('user_follows')
+          .insert({
+            follower_id: user.id,
+            following_id: id,
+            created_at: new Date().toISOString()
+          });
+        
+        if (error) {
+          console.error('Error following user:', error);
+          return;
+        }
+        
+        // Update local state
+        setFollowing([...following, id]);
+      }
+    } catch (error) {
+      console.error('Unexpected error in toggleFollow:', error);
     }
   };
 
@@ -183,15 +246,21 @@ export default function PeopleScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={filteredPeople}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-        ItemSeparatorComponent={() => <View className="h-3" />}
-        ListEmptyComponent={() => (
+      {loading && !refreshing ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#0000ff" />
+          <Text className="mt-4 text-muted-foreground">Loading people...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredPeople}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          ListEmptyComponent={() => (
           <Card className="p-6 items-center">
             <User size={40} className="text-muted-foreground mb-2" />
             <Text className="text-center text-muted-foreground">
@@ -286,6 +355,7 @@ export default function PeopleScreen() {
           </Card>
         )}
       />
+      )}
     </View>
   );
 }

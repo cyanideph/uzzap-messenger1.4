@@ -12,7 +12,10 @@ export function useColorScheme() {
       try {
         const savedColorScheme = await AsyncStorage.getItem('colorScheme');
         if (savedColorScheme && savedColorScheme !== colorScheme) {
-          setColorScheme(savedColorScheme);
+          // Ensure that the saved value is a valid color scheme
+          if (savedColorScheme === 'light' || savedColorScheme === 'dark' || savedColorScheme === 'system') {
+            setColorScheme(savedColorScheme);
+          }
         }
       } catch (error) {
         console.error('Failed to load color scheme', error);

@@ -25,37 +25,7 @@ interface Region {
   provinces: Province[];
 }
 
-// Generate mock data for regions and provinces as fallback
-const generateMockRegionsData = (): Region[] => {
-  return [
-    {
-      id: 'NCR',
-      name: 'National Capital Region',
-      provinces: [
-        { id: 'NCR-1', name: 'Manila', region_id: 'NCR' },
-        { id: 'NCR-2', name: 'Quezon City', region_id: 'NCR' },
-        { id: 'NCR-3', name: 'Makati', region_id: 'NCR' }
-      ]
-    },
-    {
-      id: 'R7',
-      name: 'Central Visayas',
-      provinces: [
-        { id: 'R7-1', name: 'Cebu', region_id: 'R7' },
-        { id: 'R7-2', name: 'Bohol', region_id: 'R7' }
-      ]
-    },
-    {
-      id: 'R3',
-      name: 'Central Luzon',
-      provinces: [
-        { id: 'R3-1', name: 'Bulacan', region_id: 'R3' },
-        { id: 'R3-2', name: 'Pampanga', region_id: 'R3' },
-        { id: 'R3-3', name: 'Bataan', region_id: 'R3' }
-      ]
-    }
-  ];
-};
+// No mock data - we'll use Supabase database only
 
 const CHATROOMS_PORTAL_HOST_NAME = 'chatrooms-screen';
 
@@ -84,10 +54,8 @@ export default function ChatroomsScreen() {
       }
 
       if (!regionsData || regionsData.length === 0) {
-        console.warn('No regions found');
-        // Use mock data if no regions are found in the database
-        const mockRegions = generateMockRegionsData();
-        setRegions(mockRegions);
+        console.warn('No regions found in the database');
+        setRegions([]);
         setLoading(false);
         setRefreshing(false);
         return;
@@ -132,9 +100,7 @@ export default function ChatroomsScreen() {
       setActiveUsers(activeUsers);
     } catch (error) {
       console.error('Unexpected error:', error);
-      // Use mock data as fallback
-      const mockRegions = generateMockRegionsData();
-      setRegions(mockRegions);
+      setRegions([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
