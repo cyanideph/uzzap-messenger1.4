@@ -8,7 +8,8 @@ import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { ArrowLeft, User, MapPin, Calendar, MessageSquare, Edit2, Camera, AtSign } from 'lucide-react-native';
-import { supabase } from '~/lib/supabase';
+import { supabase, uploadAvatar } from '~/lib/supabase';
+import * as ImagePicker from 'expo-image-picker';
 
 interface UserProfile {
   id: string;
@@ -34,9 +35,61 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState<Partial<UserProfile>>({});
   const [loading, setLoading] = useState(true);
-  
+  const [uploading, setUploading] = useState(false);
+
   // Determine if this is the current user's profile
   const isSelfProfile = id === user?.id || id === 'me';
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      uploadImage(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    let result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      uploadImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    if (!user?.id) return;
+
+    setUploading(true);
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+
+      const { data, error } = await uploadAvatar(user.id, file);
+
+      if (error) {
+        Alert.alert('Error', 'Failed to upload avatar');
+      } else {
+        Alert.alert('Success', 'Avatar uploaded successfully!');
+        fetchUserProfile(); // Refresh profile
+      }
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload avatar');
+    } finally {
+      setUploading(false);
+    }
+  };
   
   // Fetch user profile from Supabase
   const fetchUserProfile = async () => {
@@ -55,7 +108,7 @@ export default function ProfileScreen() {
       // Fetch user profile data
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, username, full_name, bio, avatar_url, created_at')
+        .select('id, username, full_name, bio, avatar_url, created_at, status_message, last_status_update')
         .eq('id', profileId)
         .single();
       
@@ -114,7 +167,7 @@ export default function ProfileScreen() {
         username: profileData.username,
         name: profileData.full_name || profileData.username,
         bio: profileData.bio || '',
-        location: userData?.location || 'Philippines',
+        location: userData?.location || 'Unknown',
         avatar: profileData.avatar_url,
         joinDate: new Date(profileData.created_at),
         followerCount: followerCount || 0,
@@ -331,9 +384,29 @@ export default function ProfileScreen() {
                 {isEditing ? (
                   <TouchableOpacity 
                     className="w-24 h-24 rounded-full bg-primary/10 items-center justify-center"
-                    onPress={() => Alert.alert('Upload Photo', 'Photo upload feature coming soon!')}
+                    onPress={() => {
+                      if (uploading) return;
+                      Alert.alert(
+                        'Upload Photo',
+                        'Choose how to upload',
+                        [
+                          {
+                            text: 'Choose from Library',
+                            onPress: () => pickImage(),
+                          },
+                          {
+                            text: 'Take Photo',
+                            onPress: () => takePhoto(),
+                          },
+                          { text: 'Cancel', style: 'cancel' },
+                        ],
+                        { cancelable: true }
+                      );
+                    }}
                   >
-                    {profile.avatar ? (
+                    {uploading ? (
+                      <ActivityIndicator size="small" color="#0000ff" />
+                    ) : profile.avatar ? (
                       <Image source={{ uri: profile.avatar }} className="w-24 h-24 rounded-full" />
                     ) : (
                       <>

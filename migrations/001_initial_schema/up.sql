@@ -96,6 +96,15 @@ CREATE TABLE user_chatrooms (
     UNIQUE(user_id, chatroom_id)
 );
 
+-- Create user_follows table to track user followers
+CREATE TABLE user_follows (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(follower_id, following_id)
+);
+
 -- Create functions and triggers
 
 -- Function to update updated_at timestamp

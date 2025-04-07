@@ -56,6 +56,8 @@ serve(async (req: Request) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://your-project-url.supabase.co';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? 'your-service-key';
+    console.log('Supabase URL:', supabaseUrl);
+    console.log('Supabase Service Key:', supabaseServiceKey);
     const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Authenticate as bot

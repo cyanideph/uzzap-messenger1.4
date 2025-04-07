@@ -125,7 +125,7 @@ export default function ChatroomScreen() {
         // When a new message is added, fetch the user info
         const { data: userData, error: userError } = await supabase
           .from('profiles')
-          .select('username, avatar_url')
+          .select('username, avatar_url, status_message, last_status_update')
           .eq('id', payload.new.user_id)
           .single();
 
@@ -217,8 +217,7 @@ export default function ChatroomScreen() {
   // Show bot commands when user taps the bot button
   const showBotCommands = () => {
     const commands = getBotCommands();
-    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('
-');
+    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('\n');
     
     Alert.alert(
       'UzZap Bot Commands',

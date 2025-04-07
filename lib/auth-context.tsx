@@ -64,7 +64,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 id: session?.user?.id,
                 username: session?.user?.email?.split('@')[0],
                 created_at: new Date().toISOString(),
-              },
+                status_message: null,
+                last_status_update: null
+              }
             ]);
 
             if (insertError) {

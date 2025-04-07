@@ -1,6 +1,6 @@
 // UzZap Bot Commands
 import { SupabaseClient } from 'supabase';
-import { BotRequest } from './index';
+import { BotRequest } from './index.ts';
 
 export interface BotCommand {
   name: string;
@@ -162,7 +162,7 @@ const profileCommand: BotCommand = {
       // Get detailed profile info
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('username, full_name, bio, avatar_url, created_at')
+        .select('username, full_name, bio, avatar_url, created_at, status_message, last_status_update')
         .eq('id', targetUserId)
         .single();
         

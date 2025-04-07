@@ -142,6 +142,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           width: sidebarWidth,
           transform: [{ translateX }],
         }}
+        aria-label="Sidebar"
       >
         {/* Header */}
         <View className="flex-row items-center justify-between p-4 border-b border-border">
@@ -158,7 +159,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <Text className="text-xs text-muted-foreground">{user?.email}</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={onClose} aria-label="Close Sidebar">
             <Text style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: 0, opacity: 0 }}>
               Close
             </Text>
@@ -174,6 +175,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               className={`flex-row items-center px-4 py-3 mx-2 rounded-md ${
                 item.active ? 'bg-primary/10' : ''
               }`}
+              aria-label={item.label}
               onPress={() => {
                 if (typeof item.path === 'string') {
                   navigateTo(item.path);
@@ -200,6 +202,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <TouchableOpacity
           className="flex-row items-center px-4 py-4 border-t border-border"
           onPress={handleSignOut}
+          aria-label="Sign Out"
         >
           <LogOut size={22} color={isDarkColorScheme ? "#fff" : "#000"} />
           <Text className="ml-2 font-medium">Sign Out</Text>

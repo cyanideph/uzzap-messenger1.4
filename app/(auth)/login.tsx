@@ -5,8 +5,9 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card } from '~/components/ui/card';
 import { useAuth } from '~/lib/auth-context';
-import { Mail, Lock, LogIn } from 'lucide-react-native';
-import { Badge } from '~/components/ui/badge';
+import GreenMail from '~/lib/icons/Mail';
+import GreenLock from '~/lib/icons/Lock';
+import ResponsiveLogo from '~/components/ResponsiveLogo';
 import { Text } from '~/components/ui/text';
 import { Title } from '~/components/ui/title';
 
@@ -36,30 +37,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-background">
+    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }}>
       <View className="min-h-screen justify-center items-center p-6">
         <View className="items-center mb-8">
-          <Badge className="mb-6 py-1.5 px-4" variant="outline">
-            <LogIn size={14} className="mr-1" />
-            <Text className="text-xs font-medium">Member Access</Text>
-          </Badge>
-          <Image 
-            source={require('~/assets/images/logo.png')} 
-            style={{ width: 180, height: 60 }}
-            className="mb-4"
-            resizeMode="contain"
-          />
+          <ResponsiveLogo />
           <Title level={1} className="text-center">Welcome Back</Title>
           <Text variant="contrast" className="text-sm mt-1 text-center">Sign in to your UzZap account</Text>
         </View>
 
-        <Card className="w-full max-w-md p-6 mb-6">
+        <Card className="w-full max-w-md p-6 mb-6 shadow-md">
           <View className="space-y-5">
             <View>
               <Text variant="contrast" className="text-sm font-medium mb-1.5">Email</Text>
               <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
                 <View className="py-3 pl-3 pr-2">
-                  <Mail size={18} className="text-muted-foreground" />
+                  <GreenMail size={18} />
                 </View>
                 <Input
                   placeholder="Enter your email"
@@ -76,7 +68,7 @@ export default function LoginScreen() {
               <Text variant="contrast" className="text-sm font-medium mb-1.5">Password</Text>
               <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
                 <View className="py-3 pl-3 pr-2">
-                  <Lock size={18} className="text-muted-foreground" />
+                  <GreenLock size={18} />
                 </View>
                 <Input
                   placeholder="Enter your password"
@@ -91,7 +83,7 @@ export default function LoginScreen() {
             <Button
               onPress={handleLogin}
               disabled={loading}
-              className="w-full h-12 mt-2"
+              className="w-full h-12 mt-4 rounded-full"
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -102,9 +94,9 @@ export default function LoginScreen() {
           </View>
         </Card>
 
-        <View className="flex-row justify-center mt-2">
+        <View className="flex-row justify-center mt-4">
           <Text variant="contrast" className="text-base">Don't have an account? </Text>
-          <Text 
+          <Text
             className="text-primary font-medium"
             onPress={() => router.push('/(auth)/signup' as any)}
           >

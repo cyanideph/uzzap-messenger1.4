@@ -170,7 +170,7 @@ export default function DirectMessageScreen() {
           id: newMsg.id,
           userId: newMsg.sender_id,
           userName: isCurrentUser ? 'You' : (recipientProfile?.username || 'User'),
-          userAvatar: isCurrentUser ? null : recipientProfile?.avatar_url,
+          userAvatar: isCurrentUser ? null : recipientProfile?.avatar_url ?? null,
           text: newMsg.content,
           timestamp: new Date(newMsg.created_at),
           isCurrentUser
@@ -291,8 +291,7 @@ export default function DirectMessageScreen() {
   // Show bot commands when user taps the bot button
   const showBotCommands = () => {
     const commands = getBotCommands();
-    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('
-');
+    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('\n');
     
     Alert.alert(
       'UzZap Bot Commands',

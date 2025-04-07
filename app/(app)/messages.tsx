@@ -227,7 +227,7 @@ export default function MessagesScreen() {
                       ) : (
                         <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center">
                           <Text className="text-primary text-lg font-semibold">
-                            {item.name.substring(0, 1).toUpperCase()}
+                            {item.name ? item.name.substring(0, 1).toUpperCase() : ''}
                           </Text>
                         </View>
                       )}

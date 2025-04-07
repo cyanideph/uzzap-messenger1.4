@@ -10,7 +10,10 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
 } from 'react-native-reanimated';
-import { MessageSquare, Users, MapPin, ChevronRight } from 'lucide-react-native';
+import { MessageSquare } from '~/lib/icons/MessageSquare';
+import { Users } from '~/lib/icons/Users';
+import { MapPin } from '~/lib/icons/MapPin';
+import { ChevronRight } from '~/lib/icons/ChevronRight';
 import { Badge } from '~/components/ui/badge';
 import { Card } from '~/components/ui/card';
 
@@ -69,7 +72,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background" >
       <View className="absolute top-12 right-6 z-10">
         <Badge variant="outline" className="py-1.5 px-3">
           <Text className="text-xs font-medium">{currentIndex + 1}/{slides.length}</Text>
@@ -93,7 +96,7 @@ export default function OnboardingScreen() {
             style={{ width }}
             className="flex-1 items-center justify-center p-6"
           >
-            <Card className="w-full max-w-md items-center p-8 mb-6">
+            <Card className="w-full max-w-md items-center p-8 mb-6 shadow-md">
               <View className="items-center mb-10 p-6 bg-primary/10 rounded-full">
                 {slide.icon}
               </View>
@@ -142,7 +145,7 @@ export default function OnboardingScreen() {
           return (
             <Animated.View
               key={index}
-              className="h-2 bg-primary rounded-full mx-1"
+              className="h-2 bg-primary rounded-full mx-1 shadow-md"
               style={[dotStyle]}
             />
           );
@@ -153,7 +156,7 @@ export default function OnboardingScreen() {
       <View className="p-6 pt-0">
         <Button
           onPress={handleContinue}
-          className="w-full h-12 mb-4"
+          className="w-full h-12 mb-4 rounded-full"
         >
           <Text className="mr-2 text-primary-foreground font-medium">
             {currentIndex === slides.length - 1 ? 'Get Started' : 'Continue'}
@@ -165,7 +168,7 @@ export default function OnboardingScreen() {
           <Button
             onPress={handleSkip}
             variant="outline"
-            className="w-full h-12"
+            className="w-full h-12 rounded-full"
           >
             Skip
           </Button>

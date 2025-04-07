@@ -66,3 +66,35 @@ export async function updateUserProfile(userId: string, updates: { username?: st
   
   return { data, error };
 }
+// Function to upload avatar to Supabase storage
+export async function uploadAvatar(userId: string, avatarFile: File) {
+  try {
+    const fileName = `avatars/${userId}/${avatarFile.name}`;
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, avatarFile, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Error uploading avatar:', error);
+      return { data: null, error };
+    }
+
+    const avatar_url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${fileName}`;
+    
+    // Update user profile with the new avatar URL
+    const { data: profileData, error: profileError } = await updateUserProfile(userId, { avatar_url });
+
+    if (profileError) {
+      console.error('Error updating user profile:', profileError);
+      return { data: null, error: profileError };
+    }
+
+    return { data: { ...data, avatar_url }, error: null };
+  } catch (error: any) {
+    console.error('Unexpected error uploading avatar:', error);
+    return { data: null, error: { message: error.message } };
+  }
+}

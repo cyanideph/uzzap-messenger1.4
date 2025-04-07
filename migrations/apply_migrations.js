@@ -1,24 +1,10 @@
 // apply_migrations.js
 // A simple script to apply migrations to Supabase
 
-const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-// Get Supabase credentials from environment variables
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: Supabase URL and key must be set as environment variables');
-  console.error('Please set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY');
-  process.exit(1);
-}
-
-// Initialize Supabase client
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function applyMigration(migrationPath, fileName) {
+async function applyMigration(supabase, migrationPath, fileName) {
   try {
     const filePath = path.join(migrationPath, fileName);
     const sql = fs.readFileSync(filePath, 'utf8');
@@ -40,33 +26,39 @@ async function applyMigration(migrationPath, fileName) {
 }
 
 async function main() {
-  const migrationsDir = path.join(__dirname);
-  const migrationFolders = fs.readdirSync(migrationsDir)
-    .filter(folder => folder.match(/^\d+_/) && fs.statSync(path.join(migrationsDir, folder)).isDirectory())
-    .sort(); // Sort to apply migrations in order
+  try {
+      const { supabase } = require('../lib/supabase.js');
+    const migrationsDir = path.join(__dirname);
+    const migrationFolders = fs.readdirSync(migrationsDir)
+      .filter(folder => folder.match(/^\d+_/) && fs.statSync(path.join(migrationsDir, folder)).isDirectory())
+      .sort(); // Sort to apply migrations in order
 
-  console.log('Found migration folders:', migrationFolders);
+    console.log('Found migration folders:', migrationFolders);
 
-  for (const folder of migrationFolders) {
-    const migrationPath = path.join(migrationsDir, folder);
-    
-    // Apply up.sql first
-    const success = await applyMigration(migrationPath, 'up.sql');
-    if (!success) {
-      console.error(`Failed to apply up.sql for ${folder}. Stopping migration process.`);
-      process.exit(1);
-    }
-    
-    // Then apply seed.sql if it exists
-    if (fs.existsSync(path.join(migrationPath, 'seed.sql'))) {
-      const seedSuccess = await applyMigration(migrationPath, 'seed.sql');
-      if (!seedSuccess) {
-        console.error(`Failed to apply seed.sql for ${folder}. Continuing with next migration.`);
+    for (const folder of migrationFolders) {
+      const migrationPath = path.join(migrationsDir, folder);
+
+      // Apply up.sql first
+      const success = await applyMigration(supabase, migrationPath, 'up.sql');
+      if (!success) {
+        console.error(`Failed to apply up.sql for ${folder}. Stopping migration process.`);
+        process.exit(1);
+      }
+
+      // Then apply seed.sql if it exists
+      if (fs.existsSync(path.join(migrationPath, 'seed.sql'))) {
+        const seedSuccess = await applyMigration(supabase, migrationPath, 'seed.sql');
+        if (!seedSuccess) {
+          console.error(`Failed to apply seed.sql for ${folder}. Continuing with next migration.`);
+        }
       }
     }
-  }
 
-  console.log('All migrations applied successfully!');
+    console.log('All migrations applied successfully!');
+  } catch (error) {
+    console.error("Failed to import supabase:", error);
+    process.exit(1);
+  }
 }
 
 main().catch(error => {

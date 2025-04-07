@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, FlatList, Platform } from 'react-native';
+import { View, ScrollView, RefreshControl, FlatList, Platform, Pressable } from 'react-native';
 import { Text } from '~/components/ui/text';
 import { Card } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
-import { Search, MapPin, Users, ChevronRight, MessageSquare } from 'lucide-react-native';
+import { Search } from '~/lib/icons/Search';
+import { MapPin } from '~/lib/icons/MapPin';
+import { Users } from '~/lib/icons/Users';
+import { ChevronRight } from '~/lib/icons/ChevronRight';
+import { MessageSquare } from '~/lib/icons/MessageSquare';
 import { router } from 'expo-router';
 import { supabase } from '~/lib/supabase';
-import * as Slot from '@rn-primitives/slot';
+// import * as Slot from '@rn-primitives/slot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FullWindowOverlay } from 'react-native-screens';
 import { PortalHost } from '@rn-primitives/portal';
@@ -117,6 +121,7 @@ export default function ChatroomsScreen() {
   };
 
   const toggleRegion = (regionId: string) => {
+    console.log('toggleRegion called with regionId:', regionId);
     setExpandedRegion(expandedRegion === regionId ? null : regionId);
   };
 
@@ -178,55 +183,18 @@ export default function ChatroomsScreen() {
           ) : (
             // Regions List
             <View className="space-y-4">
-              {filteredRegions.map(region => (
-                <Card key={region.id} className="border border-border overflow-hidden">
-                  {/* Region Header */}
-                  <Slot.Pressable
-                    className="flex-row items-center justify-between p-4"
-                    onPress={() => toggleRegion(region.id)}
-                  >
-                    <View className="flex-row items-center flex-1">
-                      <MapPin size={18} className="text-primary mr-2" />
-                      <View className="flex-1">
-                        <Text className="font-semibold">{region.name}</Text>
-                        <Text className="text-sm text-muted-foreground">
-                          {region.provinces.length} {region.provinces.length === 1 ? 'Province' : 'Provinces'}
-                        </Text>
-                      </View>
-                    </View>
-                    <ChevronRight 
-                      size={18} 
-                      className={`text-muted-foreground transition-transform ${
-                        expandedRegion === region.id ? 'rotate-90' : ''
-                      }`}
-                    />
-                  </Slot.Pressable>
-
-                  {/* Provinces List */}
-                  {expandedRegion === region.id && (
-                    <View className="border-t border-border">
-                      {region.provinces.map(province => (
-                        <Slot.Pressable
-                          key={province.id}
-                          className="flex-row items-center justify-between p-4 border-b border-border last:border-b-0"
-                          onPress={() => navigateToChatroom(province.id, province.name, region.name)}
-                        >
-                          <View className="flex-1">
-                            <Text>{province.name}</Text>
-                            <View className="flex-row items-center mt-1">
-                              <Users size={14} className="text-muted-foreground mr-1" />
-                              <Text className="text-sm text-muted-foreground">
-                                {activeUsers[province.id] || 0} active
-                              </Text>
-                            </View>
-                          </View>
-                          <MessageSquare size={18} className="text-primary" />
-                        </Slot.Pressable>
-                      ))}
-                    </View>
-                  )}
-                </Card>
-              ))}
+              {filteredRegions.map(region => {
+                return (
+                  <RegionItem
+                    key={region.id}
+                    region={region}
+                    expandedRegion={expandedRegion}
+                    toggleRegion={toggleRegion}
+                    navigateToChatroom={navigateToChatroom}
+                    activeUsers={activeUsers}
+                  />
+                );
+              })}
             </View>
           )}
         </View>
@@ -236,5 +204,72 @@ export default function ChatroomsScreen() {
         <PortalHost name={CHATROOMS_PORTAL_HOST_NAME} />
       </WindowOverlay>
     </View>
+  );
+}
+
+function RegionItem({ region, expandedRegion, toggleRegion, navigateToChatroom, activeUsers }: {
+  region: Region;
+  expandedRegion: string | null;
+  toggleRegion: (regionId: string) => void;
+  navigateToChatroom: (provinceId: string, provinceName: string, regionName: string) => void;
+  activeUsers: Record<string, number>;
+}) {
+  const memoizedRegion = React.useMemo(() => region, [region]);
+
+  return (
+    <Card key={memoizedRegion.id} className="border border-border overflow-hidden">
+      {/* Region Header */}
+      <Pressable
+        className="flex-row items-center justify-between p-4"
+        onPress={() => {
+          console.log('Region header pressed for regionId:', memoizedRegion.id);
+          toggleRegion(memoizedRegion.id);
+        }}
+      >
+        <View className="flex-row items-center flex-1 justify-between">
+          <View className="flex-row items-center flex-1">
+            <MapPin size={18} className="text-primary mr-2" />
+            <View className="flex-1">
+              <Text className="font-semibold">{memoizedRegion.name}</Text>
+              <Text className="text-sm text-muted-foreground">
+                {memoizedRegion.provinces.length} {memoizedRegion.provinces.length === 1 ? 'Province' : 'Provinces'}
+              </Text>
+            </View>
+          </View>
+          <ChevronRight
+            size={18}
+            className={`text-muted-foreground ${
+              String(expandedRegion) === String(memoizedRegion.id) ? 'rotate-90' : ''
+            }`}
+          />
+        </View>
+      </Pressable>
+
+      {/* Provinces List */}
+      {String(expandedRegion) === String(memoizedRegion.id) && (
+        <View className="border-t border-border">
+          {memoizedRegion.provinces.map(province => (
+            <Pressable
+              key={province.id}
+              className="flex-row items-center justify-between p-4 border-b border-border last:border-b-0"
+              onPress={() => navigateToChatroom(province.id, province.name, memoizedRegion.name)}
+            >
+              <View className="flex-1 flex-row items-center justify-between">
+                <View className="flex-1">
+                  <Text>{province.name}</Text>
+                  <View className="flex-row items-center mt-1">
+                    <Users size={14} className="text-muted-foreground mr-1" />
+                    <Text className="text-sm text-muted-foreground">
+                      {activeUsers[province.id] || 0} active
+                    </Text>
+                  </View>
+                </View>
+                <MessageSquare size={18} className="text-primary" />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </Card>
   );
 }

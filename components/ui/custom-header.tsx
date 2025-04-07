@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-nati
 import { Text } from '~/components/ui/text';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { Menu, Bell } from 'lucide-react-native';
-import { router, usePathname } from 'expo-router';
+import { router, usePathname, useLocalSearchParams } from 'expo-router';
 
 interface CustomHeaderProps {
   title?: string;
@@ -18,6 +18,12 @@ export function CustomHeader({ title, onOpenSidebar, rightComponent }: CustomHea
   // Determine title based on current route if not provided
   const getRouteTitle = () => {
     if (title) return title;
+
+    const { title: paramTitle } = useLocalSearchParams();
+    
+    if (paramTitle) {
+      return String(paramTitle);
+    }
     
     const routeTitles: Record<string, string> = {
       '/(app)/home': 'Home',
@@ -28,41 +34,28 @@ export function CustomHeader({ title, onOpenSidebar, rightComponent }: CustomHea
       '/(app)/help': 'Help Center',
       '/(app)/about': 'About UzZap',
     };
-    
+
     if (pathname in routeTitles) {
       return routeTitles[pathname];
     }
-    
-    if (pathname.includes('/(app)/profile/')) {
-      return 'Profile';
-    }
-    
-    if (pathname.includes('/(app)/chatroom/')) {
-      return 'Chatroom';
-    }
-    
-    if (pathname.includes('/(app)/direct-message/')) {
-      return 'Direct Message';
-    }
-    
+
     return 'UzZap';
   };
   
+  const routeTitle = getRouteTitle();
+
   return (
-    <View 
+    <View
       className={`px-4 border-b z-10 ${
         isDarkColorScheme ? 'bg-background border-border' : 'bg-white border-gray-200'
-      }`}
-      style={{
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 10,
-        paddingBottom: 10,
-      }}
+      } pt-[${StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 10}px] pb-2.5`}
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center">
           <TouchableOpacity
             onPress={onOpenSidebar}
             className="mr-3 p-1"
+            aria-label="Open Sidebar"
           >
             <Text style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: 0, opacity: 0 }}>
               Menu
@@ -70,13 +63,13 @@ export function CustomHeader({ title, onOpenSidebar, rightComponent }: CustomHea
             <Menu size={24} color={isDarkColorScheme ? "#fff" : "#000"} />
           </TouchableOpacity>
           {pathname === '/home' ? (
-            <Image 
-              source={require('~/assets/images/logo.png')} 
+            <Image
+              source={require('~/assets/images/logo.png')}
               style={{ width: 100, height: 30 }}
               resizeMode="contain"
             />
           ) : (
-            <Text className="text-lg font-semibold">{getRouteTitle()}</Text>
+            <Text className="text-lg font-semibold">{routeTitle}</Text>
           )}
         </View>
         
@@ -87,6 +80,7 @@ export function CustomHeader({ title, onOpenSidebar, rightComponent }: CustomHea
             <TouchableOpacity 
               className="p-2"
               onPress={() => router.push('/(app)/messages')}
+              aria-label="Messages"
             >
               <Text style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: 0, opacity: 0 }}>
                 Messages
