@@ -55,18 +55,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
       <AuthProvider>
-        <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
-        <Stack screenOptions={{
-          headerShown: true,
-          contentStyle: { backgroundColor: isDarkColorScheme ? '#000' : '#fff' },
-        }}>
-          <Stack.Screen
-            name="index"
-            options={{
-              title: 'UzZap',
-              headerShown: false,
-            }}
-          />
+        <Stack>
           <Stack.Screen
             name="(auth)"
             options={{
@@ -77,7 +66,12 @@ export default function RootLayout() {
             name="(app)"
             options={{
               headerShown: false,
-              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
             }}
           />
         </Stack>

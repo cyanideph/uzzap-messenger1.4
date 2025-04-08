@@ -7,6 +7,7 @@ import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 import { Separator } from '~/components/ui/separator';
 import { Search, ChevronDown, ChevronUp, MessageSquare, User, Users, Shield, Mail } from 'lucide-react-native';
+import { cn } from '~/lib/utils';
 import { useColorScheme } from '~/lib/useColorScheme';
 
 interface FAQItem {
@@ -121,7 +122,7 @@ export default function HelpCenterScreen() {
                 onPress={() => setSearchQuery(category.name.toLowerCase())}
               >
                 <View className="mb-2">{category.icon}</View>
-                <Text className="text-center">{category.name}</Text>
+                <Text className={cn("text-center", isDarkColorScheme ? "text-white" : "")}>{category.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -174,10 +175,10 @@ export default function HelpCenterScreen() {
           <Text className="text-lg font-semibold mb-3">Need More Help?</Text>
           <Card className="p-4 mb-6 border border-border">
             <Text className="text-foreground mb-3">
-              Can't find what you're looking for? Contact our support team for personalized assistance.
+              <Text>Can't find what you're looking for? Contact our support team for personalized assistance.</Text>
             </Text>
             <Button>
-              Contact Support
+              <Text>Contact Support</Text>
             </Button>
           </Card>
         </View>

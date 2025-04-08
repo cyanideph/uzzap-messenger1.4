@@ -66,6 +66,7 @@ export async function updateUserProfile(userId: string, updates: { username?: st
   
   return { data, error };
 }
+
 // Function to upload avatar to Supabase storage
 export async function uploadAvatar(userId: string, avatarFile: File) {
   try {
@@ -97,4 +98,95 @@ export async function uploadAvatar(userId: string, avatarFile: File) {
     console.error('Unexpected error uploading avatar:', error);
     return { data: null, error: { message: error.message } };
   }
+}
+
+// Gallery management functions
+export async function uploadGalleryImage(userId: string, imageFile: File, caption?: string) {
+  try {
+    const fileName = `gallery/${userId}/${Date.now()}-${imageFile.name}`;
+    
+    const { data, error } = await supabase.storage
+      .from('gallery')
+      .upload(fileName, imageFile, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) throw error;
+
+    const image_url = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/public/gallery/${fileName}`;
+    
+    const { error: insertError } = await supabase
+      .from('profile_gallery')
+      .insert({
+        profile_id: userId,
+        image_url,
+        caption
+      });
+
+    if (insertError) throw insertError;
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error uploading gallery image:', error);
+    return { data: null, error };
+  }
+}
+
+export async function getGalleryImages(userId: string) {
+  const { data, error } = await supabase
+    .from('profile_gallery')
+    .select('*')
+    .eq('profile_id', userId)
+    .order('created_at', { ascending: false });
+    
+  return { data, error };
+}
+
+export async function deleteGalleryImage(imageId: string) {
+  const { error } = await supabase
+    .from('profile_gallery')
+    .delete()
+    .eq('id', imageId);
+    
+  return { error };
+}
+
+// Relationship management functions
+export async function addFriend(userId: string, friendId: string) {
+  const { error } = await supabase
+    .from('user_relationships')
+    .insert({
+      user_id: userId,
+      related_user_id: friendId,
+      relationship_type: 'friend'
+    });
+  return { error };
+}
+
+export async function blockUser(userId: string, blockedId: string) {
+  const { error } = await supabase
+    .from('user_relationships')
+    .insert({
+      user_id: userId,
+      related_user_id: blockedId,
+      relationship_type: 'blocked'
+    });
+  return { error };
+}
+
+export async function removeRelationship(userId: string, relatedId: string) {
+  const { error } = await supabase
+    .from('user_relationships')
+    .delete()
+    .match({ user_id: userId, related_user_id: relatedId });
+  return { error };
+}
+
+export async function getUserRelationships(userId: string) {
+  const { data, error } = await supabase
+    .from('user_relationships')
+    .select('*, related_user:profiles(id, username, full_name, avatar_url)')
+    .eq('user_id', userId);
+  return { data, error };
 }

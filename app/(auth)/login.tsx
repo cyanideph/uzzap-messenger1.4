@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card } from '~/components/ui/card';
 import { useAuth } from '~/lib/auth-context';
-import GreenMail from '~/lib/icons/Mail';
-import GreenLock from '~/lib/icons/Lock';
+import Mail from '~/lib/icons/Mail';
+import { Lock } from '~/lib/icons/Lock';
 import ResponsiveLogo from '~/components/ResponsiveLogo';
 import { Text } from '~/components/ui/text';
 import { Title } from '~/components/ui/title';
@@ -51,7 +51,7 @@ export default function LoginScreen() {
               <Text variant="contrast" className="text-sm font-medium mb-1.5">Email</Text>
               <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
                 <View className="py-3 pl-3 pr-2">
-                  <GreenMail size={18} />
+                  <Mail size={18} className="text-primary" />
                 </View>
                 <Input
                   placeholder="Enter your email"
@@ -68,7 +68,7 @@ export default function LoginScreen() {
               <Text variant="contrast" className="text-sm font-medium mb-1.5">Password</Text>
               <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
                 <View className="py-3 pl-3 pr-2">
-                  <GreenLock size={18} />
+                  <Lock size={18} className="text-primary" />
                 </View>
                 <Input
                   placeholder="Enter your password"

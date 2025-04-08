@@ -14,15 +14,15 @@ const helpCommand: BotCommand = {
   name: 'help',
   description: 'Shows available commands and usage',
   usage: '/help [command]',
-  execute: async (request: BotRequest, supabase: SupabaseClient) => {
+  execute: async (request: BotRequest, _supabase: SupabaseClient) => {
     if (request.args && request.args.length > 0) {
       const commandName = request.args[0].toLowerCase();
       const command = commands.find(cmd => cmd.name === commandName);
       
       if (command) {
-        return `**${command.name}**: ${command.description}\nUsage: ${command.usage}`;
+        return await `**${command.name}**: ${command.description}\nUsage: ${command.usage}`;
       } else {
-        return `Command not found: ${commandName}\nType /help to see all available commands.`;
+        return await `Command not found: ${commandName}\nType /help to see all available commands.`;
       }
     }
     
@@ -32,7 +32,7 @@ const helpCommand: BotCommand = {
     });
     
     response += '\nFor more details about a specific command, type /help [command]';
-    return response;
+    return await response;
   }
 };
 
@@ -42,7 +42,7 @@ const infoCommand: BotCommand = {
   description: 'Shows information about UzZap messenger',
   usage: '/info',
   execute: async () => {
-    return `**UzZap Messenger**\n\nUzZap is a Filipino chat application that connects people across different regions of the Philippines. Features include:\n\n- Regional chatrooms for local communities\n- Direct messaging between users\n- User profiles and follow system\n- Real-time messaging via Supabase\n\nVersion: 1.4\nCreated: 2025`;
+    return await `**UzZap Messenger**\n\nUzZap is a Filipino chat application that connects people across different regions of the Philippines. Features include:\n\n- Regional chatrooms for local communities\n- Direct messaging between users\n- User profiles and follow system\n- Real-time messaging via Supabase\n\nVersion: 1.4\nCreated: 2025`;
   }
 };
 
@@ -53,7 +53,7 @@ const weatherCommand: BotCommand = {
   usage: '/weather [location]',
   execute: async (request: BotRequest) => {
     if (!request.args || request.args.length === 0) {
-      return 'Please specify a location. Usage: /weather [location]';
+      return await 'Please specify a location. Usage: /weather [location]';
     }
     
     const location = request.args.join(' ');
@@ -69,7 +69,7 @@ const weatherCommand: BotCommand = {
     const temperature = Math.floor(Math.random() * 10) + 25; // 25-34°C typical for Philippines
     const humidity = Math.floor(Math.random() * 30) + 60; // 60-90% humidity
     
-    return `**Weather for ${location}**\n\nCondition: ${randomCondition}\nTemperature: ${temperature}°C\nHumidity: ${humidity}%\n\n_Note: This is simulated data for demonstration purposes._`;
+    return await `**Weather for ${location}**\n\nCondition: ${randomCondition}\nTemperature: ${temperature}°C\nHumidity: ${humidity}%\n\n_Note: This is simulated data for demonstration purposes._`;
   }
 };
 
@@ -78,7 +78,7 @@ const statsCommand: BotCommand = {
   name: 'stats',
   description: 'Shows statistics about UzZap usage',
   usage: '/stats',
-  execute: async (request: BotRequest, supabase: SupabaseClient) => {
+  execute: async (__request: BotRequest, supabase: SupabaseClient) => {
     try {
       // Get user count
       const { count: userCount, error: userError } = await supabase
@@ -109,7 +109,7 @@ const statsCommand: BotCommand = {
         
       if (onlineError) throw onlineError;
       
-      return `**UzZap Statistics**\n\nTotal Users: ${userCount || 0}\nChatrooms: ${chatroomCount || 0}\nMessages Sent: ${messageCount || 0}\nUsers Online: ${onlineCount || 0}`;
+      return await `**UzZap Statistics**\n\nTotal Users: ${userCount || 0}\nChatrooms: ${chatroomCount || 0}\nMessages Sent: ${messageCount || 0}\nUsers Online: ${onlineCount || 0}`;
     } catch (error) {
       console.error('Error fetching stats:', error);
       return 'Sorry, I encountered an error while fetching statistics. Please try again later.';
@@ -209,7 +209,7 @@ const regionsCommand: BotCommand = {
   name: 'regions',
   description: 'Lists available regions in the Philippines',
   usage: '/regions',
-  execute: async (request: BotRequest, supabase: SupabaseClient) => {
+  execute: async (__request: BotRequest, supabase: SupabaseClient) => {
     try {
       const { data: regions, error } = await supabase
         .from('regions')
@@ -248,23 +248,80 @@ const randomCommand: BotCommand = {
     const type = request.args[0].toLowerCase();
     
     switch (type) {
-      case 'number':
+      case 'number': {
         const max = request.args[1] ? parseInt(request.args[1]) : 100;
         const randomNumber = Math.floor(Math.random() * max) + 1;
-        return `Random number (1-${max}): **${randomNumber}**`;
+        return await `Random number (1-${max}): **${randomNumber}**`;
+      }
       
-      case 'dice':
+      case 'dice': {
         const sides = request.args[1] ? parseInt(request.args[1]) : 6;
         const diceRoll = Math.floor(Math.random() * sides) + 1;
-        return `Dice roll (${sides}-sided): 🎲 **${diceRoll}**`;
+        return await `Dice roll (${sides}-sided): 🎲 **${diceRoll}**`;
+      }
       
-      case 'coin':
+      case 'coin': {
         const coinFlip = Math.random() < 0.5 ? 'Heads' : 'Tails';
-        return `Coin flip: **${coinFlip}**`;
+        return await `Coin flip: **${coinFlip}**`;
+      }
       
       default:
-        return `Invalid option: ${type}. Please use 'number', 'dice', or 'coin'.`;
+        return await `Invalid option: ${type}. Please use 'number', 'dice', or 'coin'.`;
     }
+  }
+};
+
+// Command: GIF
+const gifCommand: BotCommand = {
+  name: 'gif',
+  description: 'Search and share GIFs',
+  usage: '/gif <search term>',
+  execute: async (request: BotRequest) => {
+    const searchTerm = request.args?.join(' ') || 'random';
+    const response = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${Deno.env.get('GIPHY_API_KEY')}&q=${searchTerm}&limit=1`);
+    const data = await response.json();
+    return data.data[0]?.url || 'No GIF found!';
+  }
+};
+
+// Command: Joke
+const jokeCommand: BotCommand = {
+  name: 'joke',
+  description: 'Get a random dad joke',
+  usage: '/joke',
+  execute: async () => {
+    const response = await fetch('https://icanhazdadjoke.com/', {
+      headers: { 'Accept': 'application/json' }
+    });
+    const data = await response.json();
+    return data.joke || 'Failed to fetch joke!';
+  }
+};
+
+// Command: Trivia
+const triviaCommand: BotCommand = {
+  name: 'trivia',
+  description: 'Start a trivia game',
+  usage: '/trivia',
+  execute: async () => {
+    const response = await fetch('https://opentdb.com/api.php?amount=1&type=multiple');
+    const data = await response.json();
+    if (!data.results?.[0]) return 'Failed to fetch trivia question!';
+    
+    const question = data.results[0];
+    return `**Trivia Question:**\n${question.question}\n\nChoices:\nA) ${question.correct_answer}\n${question.incorrect_answers.map((a, i) => `${String.fromCharCode(66 + i)}) ${a}`).join('\n')}`;
+  }
+};
+
+// Command: Meme
+const memeCommand: BotCommand = {
+  name: 'meme',
+  description: 'Get a random meme',
+  usage: '/meme',
+  execute: async () => {
+    const response = await fetch('https://meme-api.herokuapp.com/gimme');
+    const data = await response.json();
+    return data.url || 'Failed to fetch meme!';
   }
 };
 
@@ -276,7 +333,11 @@ export const commands: BotCommand[] = [
   statsCommand,
   profileCommand,
   regionsCommand,
-  randomCommand
+  randomCommand,
+  gifCommand,
+  jokeCommand,
+  triviaCommand,
+  memeCommand
 ];
 
 // Process a command

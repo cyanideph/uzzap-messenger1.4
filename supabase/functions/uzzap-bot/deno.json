@@ -5,5 +5,19 @@
   },
   "tasks": {
     "start": "deno run --allow-net --allow-env index.ts"
-  }
+  },
+  "compilerOptions": {
+    "lib": [
+      "es2020",
+      "dom"
+    ],
+    "strict": true,
+    "noImplicitAny": false
+  },
+  "permissions": {
+    "net": ["api.giphy.com", "icanhazdadjoke.com", "opentdb.com", "meme-api.herokuapp.com"]
+  },
+  "unstable": [
+    "sloppy-imports"
+  ]
 }

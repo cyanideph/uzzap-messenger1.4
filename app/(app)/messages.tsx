@@ -145,8 +145,11 @@ export default function MessagesScreen() {
     const subscription = supabase
       .channel('public:direct_messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload) => {
-        // Re-fetch conversations when a new message is received
-        fetchConversations();
+        const { new: newMessage } = payload;
+        // Re-fetch conversations only if the new message involves the current user
+        if (user && (newMessage.sender_id === user.id || newMessage.recipient_id === user.id)) {
+          fetchConversations();
+        }
       })
       .subscribe();
     
@@ -203,8 +206,8 @@ export default function MessagesScreen() {
         {/* Loading State */}
         {loading ? (
           <View className="items-center justify-center py-8">
-            <ActivityIndicator size="large" color="#0000ff" />
-            <Text className="mt-4 text-muted-foreground">Loading conversations...</Text>
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text className="text-muted-foreground mt-2">Loading messages...</Text>
           </View>
         ) : filteredConversations.length > 0 ? (
           <FlatList
@@ -281,7 +284,7 @@ export default function MessagesScreen() {
             <Button
               onPress={() => router.push('/people')}
             >
-              Find People
+              <Text className="text-primary-foreground">Find People</Text>
             </Button>
           </Card>
         )}

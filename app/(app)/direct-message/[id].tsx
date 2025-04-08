@@ -20,6 +20,8 @@ import { Send, ArrowLeft, MoreVertical, Phone, Video, User, Bot, Smile, Papercli
 import { useColorScheme } from '~/lib/useColorScheme';
 import { supabase } from '~/lib/supabase';
 import { sendMessageToBot, isBot, getBotCommands } from '~/lib/bot';
+import { trackActivity, markMessageAsRead } from '~/lib/activity';
+import { ReadReceipts } from '~/components/messages/ReadReceipts';
 
 // Type definitions for Supabase data
 interface Profile {
@@ -48,6 +50,7 @@ interface DirectMessage {
   text: string;
   timestamp: Date;
   isCurrentUser: boolean;
+  isRead?: boolean;
 }
 
 export default function DirectMessageScreen() {
@@ -60,65 +63,82 @@ export default function DirectMessageScreen() {
   const [recipientProfile, setRecipientProfile] = useState<Profile | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
+  const checkExistingConversation = async (user1Id: string, user2Id: string) => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`)
+      .or(`user1_id.eq.${user2Id},user2_id.eq.${user2Id}`)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking for existing conversation:', error);
+    }
+    return data;
+  };
+
+  const createConversation = async (user1Id: string, user2Id: string) => {
+    const existingConv = await checkExistingConversation(user1Id, user2Id);
+    if (existingConv) return existingConv.id;
+
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({
+        user1_id: user1Id,
+        user2_id: user2Id,
+        created_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+    
+    if (error) {
+      console.error('Error creating conversation:', error);
+      return null;
+    }
+    
+    return data.id;
+  };
+
   useEffect(() => {
     if (!id || !user?.id) return;
-    
+
     const fetchMessages = async () => {
       try {
         setLoading(true);
-        
+
         // Get recipient profile info
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('username, avatar_url, full_name')
           .eq('id', id)
           .single();
-        
+
         if (profileError) {
           console.error('Error fetching recipient profile:', profileError);
         } else {
           setRecipientProfile(profileData);
         }
-        
+
         // Check if a conversation exists or create one
-        const { data: existingConversation, error: conversationError } = await supabase
-          .from('conversations')
-          .select('id')
-          .or(`user1_id.eq.${user.id}.and.user2_id.eq.${id},user1_id.eq.${id}.and.user2_id.eq.${user.id}`)
-          .single();
-        
-        if (conversationError && conversationError.code !== 'PGRST116') { // Code for no rows returned
-          console.error('Error checking for existing conversation:', conversationError);
+        const conversationId = await createConversation(user.id, id);
+
+        if (!conversationId) {
+          console.error('Failed to create or fetch conversation');
+          return;
         }
-        
-        if (!existingConversation) {
-          // Create a new conversation
-          const { data: newConversation, error: createError } = await supabase
-            .from('conversations')
-            .insert({
-              user1_id: user.id,
-              user2_id: id,
-            })
-            .select('id')
-            .single();
-          
-          if (createError) {
-            console.error('Error creating conversation:', createError);
-          }
-        }
-        
+
         // Fetch messages
         const { data: messagesData, error: messagesError } = await supabase
           .from('direct_messages')
           .select('id, sender_id, recipient_id, content, created_at, is_read')
           .or(`sender_id.eq.${user.id}.and.recipient_id.eq.${id},sender_id.eq.${id}.and.recipient_id.eq.${user.id}`)
           .order('created_at', { ascending: true });
-        
+
         if (messagesError) {
           console.error('Error fetching messages:', messagesError);
           return;
         }
-        
+
         // Format messages for display
         const formattedMessages: DirectMessage[] = messagesData.map((msg) => ({
           id: msg.id,
@@ -127,11 +147,12 @@ export default function DirectMessageScreen() {
           userAvatar: msg.sender_id === user?.id ? null : profileData?.avatar_url,
           text: msg.content,
           timestamp: new Date(msg.created_at),
-          isCurrentUser: msg.sender_id === user?.id
+          isCurrentUser: msg.sender_id === user?.id,
+          isRead: msg.is_read,
         }));
-        
+
         setMessages(formattedMessages);
-        
+
         // Mark messages as read
         if (messagesData.some(msg => msg.recipient_id === user.id && !msg.is_read)) {
           const { error: updateError } = await supabase
@@ -139,7 +160,7 @@ export default function DirectMessageScreen() {
             .update({ is_read: true })
             .eq('recipient_id', user.id)
             .eq('sender_id', id);
-          
+
           if (updateError) {
             console.error('Error marking messages as read:', updateError);
           }
@@ -150,9 +171,9 @@ export default function DirectMessageScreen() {
         setLoading(false);
       }
     };
-    
+
     fetchMessages();
-    
+
     // Set up real-time subscription
     const subscription = supabase
       .channel('public:direct_messages')
@@ -164,7 +185,7 @@ export default function DirectMessageScreen() {
       }, async (payload) => {
         const newMsg = payload.new as DMData;
         const isCurrentUser = newMsg.sender_id === user.id;
-        
+
         // Add new message to state
         const formattedMessage: DirectMessage = {
           id: newMsg.id,
@@ -173,44 +194,52 @@ export default function DirectMessageScreen() {
           userAvatar: isCurrentUser ? null : recipientProfile?.avatar_url ?? null,
           text: newMsg.content,
           timestamp: new Date(newMsg.created_at),
-          isCurrentUser
+          isCurrentUser,
+          isRead: newMsg.is_read,
         };
-        
+
         setMessages(prev => [...prev, formattedMessage]);
-        
+
         // Mark message as read if we're the recipient
         if (newMsg.recipient_id === user.id) {
           const { error: updateError } = await supabase
             .from('direct_messages')
             .update({ is_read: true })
             .eq('id', newMsg.id);
-          
+
           if (updateError) {
             console.error('Error marking message as read:', updateError);
           }
         }
-        
+
         // Scroll to bottom
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       })
       .subscribe();
-    
+
     return () => {
       subscription.unsubscribe();
     };
   }, [id, user?.id, username]);
+
+  useEffect(() => {
+    if (!user?.id || !id) return;
+
+    // Track profile view
+    trackActivity(user.id, 'view_profile', { viewed_user_id: id });
+  }, [user?.id, id]);
 
   const sendMessage = async () => {
     if (message.trim() === '' || !user?.id || !id) return;
 
     try {
       const messageContent = message.trim();
-      
+
       // Check if the recipient is the bot
       const isBotRecipient = id === '00000000-0000-0000-0000-000000000666';
-      
+
       // Check if this is a bot command or message to the bot
       if (messageContent.startsWith('/') || isBotRecipient) {
         // Save user's message to database
@@ -227,10 +256,10 @@ export default function DirectMessageScreen() {
           console.error('Error saving user message:', error);
           return;
         }
-        
+
         // Call the bot with this command/message
         const botResponse = await sendMessageToBot(messageContent, user.id);
-        
+
         if (!botResponse) {
           console.log('No response from bot or error occurred');
         }
@@ -251,7 +280,13 @@ export default function DirectMessageScreen() {
           return;
         }
       }
-      
+
+      // Track message send
+      trackActivity(user.id, 'send_message', {
+        recipient_id: id,
+        message_type: 'direct'
+      });
+
       // Update the conversation's last_message_at timestamp
       await supabase
         .from('conversations')
@@ -272,7 +307,7 @@ export default function DirectMessageScreen() {
   const renderMessageDate = (timestamp: Date) => {
     const today = new Date();
     const messageDate = new Date(timestamp);
-    
+
     if (today.toDateString() === messageDate.toDateString()) {
       return 'Today';
     } else if (
@@ -287,12 +322,12 @@ export default function DirectMessageScreen() {
       });
     }
   };
-  
+
   // Show bot commands when user taps the bot button
   const showBotCommands = () => {
     const commands = getBotCommands();
     const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('\n');
-    
+
     Alert.alert(
       'UzZap Bot Commands',
       commandsText,
@@ -391,11 +426,11 @@ export default function DirectMessageScreen() {
                   </View>
                 );
               }
-              
+
               // Render message
               const message = item as DirectMessage;
               const isBotMessage = isBot(message.userId);
-              
+
               return (
                 <View 
                   className={`mb-2 max-w-[80%] ${message.isCurrentUser ? 'self-end' : 'self-start'}`}
@@ -406,29 +441,39 @@ export default function DirectMessageScreen() {
                       <Text className="text-xs text-muted-foreground">UzZap Bot</Text>
                       <Badge className="ml-1 py-0" variant="secondary">
                         <Bot size={10} className="mr-1" />
-                        <Text className="text-[9px]">BOT</Text>
+                        <Text className="text-[9px]"><Text>BOT</Text></Text>
                       </Badge>
                     </View>
                   )}
-                  
-                  <View 
-                    className={`rounded-2xl p-3 ${
-                      message.isCurrentUser 
-                        ? 'bg-primary' 
-                        : isBotMessage
-                          ? 'bg-secondary border border-border'
-                          : 'bg-muted border border-border'
-                    }`}
-                  >
-                    <Text 
-                      className={message.isCurrentUser 
-                        ? 'text-primary-foreground' 
-                        : isBotMessage 
-                          ? 'text-secondary-foreground' 
-                          : 'text-foreground'}
+
+                  <View className="flex-row items-end">
+                    <View 
+                      className={`rounded-2xl p-3 ${
+                        message.isCurrentUser 
+                          ? 'bg-primary' 
+                          : isBotMessage
+                            ? 'bg-secondary border border-border'
+                            : 'bg-muted border border-border'
+                      }`}
                     >
-                      {message.text}
-                    </Text>
+                      <Text 
+                        className={message.isCurrentUser 
+                          ? 'text-primary-foreground' 
+                          : isBotMessage 
+                            ? 'text-secondary-foreground' 
+                            : 'text-foreground'}
+                      >
+                        {message.text}
+                      </Text>
+                    </View>
+                    {message.isCurrentUser && (
+                      <View className="ml-2">
+                        <ReadReceipts
+                          messageId={message.id}
+                          isRead={message.isRead}
+                        />
+                      </View>
+                    )}
                   </View>
                   <Text
                     className="text-xs text-muted-foreground mt-1"
@@ -441,7 +486,7 @@ export default function DirectMessageScreen() {
             }}
           />
         )}
-        
+
         <View className="border-t border-border p-2 bg-background">
           <View className="flex-row items-center bg-muted rounded-full p-1">
             <View className="flex-row space-x-1 p-1">
@@ -455,7 +500,7 @@ export default function DirectMessageScreen() {
                 <Paperclip size={22} className="text-muted-foreground" />
               </TouchableOpacity>
             </View>
-            
+
             <TextInput
               className="flex-1 h-10 px-3 text-foreground"
               placeholder="Message..."

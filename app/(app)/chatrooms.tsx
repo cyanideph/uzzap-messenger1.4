@@ -79,7 +79,7 @@ export default function ChatroomsScreen() {
       // Fetch active users count for each province
       const { data: activeUsersData, error: activeUsersError } = await supabase
         .from('users')
-        .select('province_id, is_online')
+        .select('id, province_id, is_online')
         .eq('is_online', true);
 
       if (activeUsersError) {
@@ -120,10 +120,10 @@ export default function ChatroomsScreen() {
     fetchRegionsAndProvinces();
   };
 
-  const toggleRegion = (regionId: string) => {
+  const toggleRegion = React.useCallback((regionId: string) => {
     console.log('toggleRegion called with regionId:', regionId);
     setExpandedRegion(expandedRegion === regionId ? null : regionId);
-  };
+  }, [expandedRegion]);
 
   const filteredRegions = regions.filter(region => {
     const matchesRegion = region.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -239,7 +239,7 @@ function RegionItem({ region, expandedRegion, toggleRegion, navigateToChatroom, 
           <ChevronRight
             size={18}
             className={`text-muted-foreground ${
-              String(expandedRegion) === String(memoizedRegion.id) ? 'rotate-90' : ''
+              String(expandedRegion) === String(memoizedRegion.id) ? 'rotate-90' : 'rotate-0'
             }`}
           />
         </View>

@@ -18,7 +18,7 @@ export async function sendMessageToBot(
 ): Promise<string | null> {
   try {
     // Get the Supabase URL from the client
-    const supabaseUrl = supabase.getUrl();
+    const supabaseUrl = "https://zvkwzfrafdytjfmxawed.supabase.co";
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/uzzap-bot`;
     
     // Prepare the request payload
@@ -28,22 +28,15 @@ export async function sendMessageToBot(
       chatroomId,
     };
     
-    // Get the user's session token for authorization
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    
-    if (!session) {
-      console.error('No active session found');
-      return null;
-    }
-    
+    // Use the service role key for authorization
+    const serviceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2a3d6ZnJhZmR5dGpmbXhhd2VkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Mzg0MzU4NCwiZXhwIjoyMDU5NDE5NTg0fQ.go73lsYGtBkZ47RtteYY63Pk8ncsWIya-0emxtcgxsw";
+
     // Call the edge function
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify(payload),
     });

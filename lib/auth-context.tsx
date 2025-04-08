@@ -6,7 +6,7 @@ import { User } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
 
 // Define the AuthUser type that extends the Supabase User type
-export type AuthUser = User;
+export type AuthUser = User & { username: string | null };
 
 type AuthContextType = {
   user: AuthUser | null;
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Listen for auth changes
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(session?.user ? { ...session.user, username: session.user.email?.split('@')[0] || null } : null);
       setLoading(false);
 
       if (event === 'SIGNED_IN') {
@@ -57,15 +57,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             Alert.alert('Error', 'Failed to check profile status');
           }
 
-          if (!profile) {
-            console.log('Creating new profile for user:', session?.user?.id);
+          if (!profile && session?.user) {
+            console.log('Creating new profile for user:', session.user.id);
             const { error: insertError } = await supabase.from('profiles').insert([
               {
-                id: session?.user?.id,
-                username: session?.user?.email?.split('@')[0],
+                id: session.user.id,
+                username: session.user.email ? session.user.email.split('@')[0] : 'user',
+                displayName: session.user.email ? session.user.email.split('@')[0] : 'user',
                 created_at: new Date().toISOString(),
                 status_message: null,
-                last_status_update: null
+                last_status_update: null,
               }
             ]);
 
@@ -110,7 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(session?.user ? { ...session.user, username: session.user.email?.split('@')[0] || null } : null);
       setLoading(false);
     });
 

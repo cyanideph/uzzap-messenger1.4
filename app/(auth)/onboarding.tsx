@@ -170,7 +170,7 @@ export default function OnboardingScreen() {
             variant="outline"
             className="w-full h-12 rounded-full"
           >
-            Skip
+            <Text>Skip</Text>
           </Button>
         )}
       </View>

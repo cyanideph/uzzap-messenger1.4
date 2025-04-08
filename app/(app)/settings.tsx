@@ -196,7 +196,7 @@ export default function SettingsScreen() {
               className="justify-start h-12 pl-1"
               onPress={() => router.push('/about')}
             >
-              <Text className="mr-3">ℹ️</Text>
+              <Text className="mr-3"><Text>ℹ️</Text></Text>
               <Text>About UzZap</Text>
               <Text className="text-muted-foreground ml-auto mr-1">v1.0.0</Text>
               <ChevronRight size={18} className="text-muted-foreground" />

@@ -7,7 +7,9 @@ import { Button } from '~/components/ui/button';
 import { useAuth } from '~/lib/auth-context';
 import { supabase } from '~/lib/supabase';
 import { MessageSquare, Users, TrendingUp, Zap } from 'lucide-react-native';
+import { ActivityFeed } from '~/components/activity/ActivityFeed';
 import { router } from 'expo-router';
+import { Activity } from '~/lib/types';
 
 type RecentChat = {
   id: string;
@@ -26,6 +28,7 @@ export default function HomeScreen() {
   const [recentChats, setRecentChats] = useState<RecentChat[]>([]);
   const [activeUsers, setActiveUsers] = useState(0);
   const [activeRegions, setActiveRegions] = useState(0);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     // Set greeting based on time of day
@@ -39,6 +42,7 @@ export default function HomeScreen() {
     }
 
     loadHomeData();
+    loadActivities();
   }, []);
 
   const loadHomeData = async () => {
@@ -79,6 +83,31 @@ export default function HomeScreen() {
     }, 1000);
   };
 
+  const loadActivities = async () => {
+    // Simulate fetching activity data from Supabase
+    const simulatedActivities = [
+      {
+        id: '1',
+        activity_type: 'message_sent',
+        metadata: {
+          user: 'John Doe',
+          message: 'Hello everyone!',
+        },
+        created_at: '10 min ago',
+      },
+      {
+        id: '2',
+        activity_type: 'status_update',
+        metadata: {
+          user: 'Jane Smith',
+          status: 'Feeling great!',
+        },
+        created_at: '2 hours ago',
+      },
+    ];
+    setActivities(simulatedActivities);
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadHomeData();
@@ -97,7 +126,7 @@ export default function HomeScreen() {
           <View>
             <Text className="text-2xl font-bold">{greeting},</Text>
             <Text className="text-lg text-muted-foreground">
-              {user?.email?.split('@')[0] || 'Friend'}
+              {user?.username || user?.email?.split('@')[0] || 'Friend'}
             </Text>
           </View>
           {user?.user_metadata?.avatar_url ? (
@@ -164,50 +193,25 @@ export default function HomeScreen() {
               </Button>
             </Card>
           ) : (
-            <View className="space-y-4">
-              {recentChats.map((chat) => (
-                <Card key={chat.id} className="p-4 border border-border">
-                  <View className="flex-row justify-between items-start">
-                    <View className="flex-1">
-                      <View className="flex-row items-center space-x-2 mb-1">
-                        <Text className="font-semibold">{chat.province_name}</Text>
-                        {chat.unread_count > 0 && (
-                          <Badge variant="destructive" className="h-5 px-1.5">
-                            <Text className="text-xs text-white">{chat.unread_count}</Text>
-                          </Badge>
-                        )}
-                      </View>
-                      <Text className="text-xs text-muted-foreground mb-2">{chat.region_name}</Text>
-                      <Text className="text-sm" numberOfLines={1}>
-                        {chat.last_message}
-                      </Text>
-                    </View>
-                    <Text className="text-xs text-muted-foreground ml-2">
-                      {chat.last_message_time}
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-end mt-2">
-                    <Button 
-                      variant="ghost"
-                      size="sm"
-                      className="h-8"
-                      onPress={() => router.push({
-                        pathname: "/(app)/chatroom/[id]",
-                        params: { 
-                          id: chat.id,
-                          provinceName: chat.province_name,
-                          regionName: chat.region_name 
-                        }
-                      })}
-                    >
-                      <MessageSquare size={14} className="mr-1" />
-                      <Text className="text-xs">Join Chat</Text>
-                    </Button>
-                  </View>
-                </Card>
-              ))}
-            </View>
+            <Card className="p-6 items-center">
+              <MessageSquare size={40} className="text-muted-foreground mb-2" />
+              <Text className="text-center text-muted-foreground">
+                No recent chats yet. Join a chatroom to start connecting!
+              </Text>
+              <Button
+                className="mt-4"
+                onPress={() => router.push('/chatrooms')}
+              >
+                <Text>Browse Chatrooms</Text>
+              </Button>
+            </Card>
           )}
+        </View>
+
+        {/* Activity Feed */}
+        <View className="mb-4">
+          <Text className="text-xl font-semibold mb-4">Activity Feed</Text>
+          <ActivityFeed activities={activities} />
         </View>
 
         {/* Featured Section */}

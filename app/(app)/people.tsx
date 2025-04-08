@@ -19,6 +19,8 @@ interface PersonProfile {
   location: string;
   isOnline: boolean;
   mutualChatrooms: number;
+  status_message?: string;
+  last_status_update?: string;
 }
 
 type TabType = 'all' | 'following' | 'suggested';
@@ -42,7 +44,7 @@ export default function PeopleScreen() {
       // Fetch all profiles except the current user
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, username, full_name, avatar_url')
+        .select('id, username, full_name, avatar_url, status_message, last_status_update')
         .neq('id', user.id);
       
       if (profilesError) {
@@ -93,6 +95,8 @@ export default function PeopleScreen() {
           // In a real implementation, you would calculate this
           // by checking which chatrooms both the current user and this user are in
           mutualChatrooms: Math.floor(Math.random() * 5),
+          status_message: profile.status_message,
+          last_status_update: profile.last_status_update
         };
       });
       
@@ -111,12 +115,25 @@ export default function PeopleScreen() {
     // Set up subscription for real-time updates on user status
     const subscription = supabase
       .channel('public:users')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, () => {
-        // Refetch people data when a user's status changes
-        fetchPeople();
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+        const { new: updatedUser } = payload;
+        // Update the people data only for the user whose status has changed
+        setPeople(prevPeople => {
+          return prevPeople.map(person => {
+            if (person.id === updatedUser.id) {
+              return {
+                ...person,
+                isOnline: updatedUser.is_online,
+                location: updatedUser.location,
+              };
+            } else {
+              return person;
+            }
+          });
+        });
       })
       .subscribe();
-    
+
     return () => {
       subscription.unsubscribe();
     };
@@ -216,7 +233,10 @@ export default function PeopleScreen() {
             onPress={() => setActiveTab('all')}
           >
             <Text 
-              className={`text-center font-medium ${activeTab === 'all' ? 'text-primary-foreground' : 'text-foreground'}`}
+              className={activeTab === 'all' 
+                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
+                : "text-center font-medium text-foreground dark:text-foreground"
+              }
             >
               All
             </Text>
@@ -227,7 +247,10 @@ export default function PeopleScreen() {
             onPress={() => setActiveTab('following')}
           >
             <Text 
-              className={`text-center font-medium ${activeTab === 'following' ? 'text-primary-foreground' : 'text-foreground'}`}
+              className={activeTab === 'following'
+                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
+                : "text-center font-medium text-foreground dark:text-foreground"
+              }
             >
               Following
             </Text>
@@ -238,7 +261,10 @@ export default function PeopleScreen() {
             onPress={() => setActiveTab('suggested')}
           >
             <Text 
-              className={`text-center font-medium ${activeTab === 'suggested' ? 'text-primary-foreground' : 'text-foreground'}`}
+              className={activeTab === 'suggested'
+                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
+                : "text-center font-medium text-foreground dark:text-foreground"
+              }
             >
               Suggested
             </Text>
@@ -275,7 +301,7 @@ export default function PeopleScreen() {
                 className="mt-4"
                 onPress={() => setActiveTab('suggested')}
               >
-                Discover People
+                <Text className="font-medium text-primary-foreground">Discover People</Text>
               </Button>
             )}
           </Card>
@@ -326,6 +352,16 @@ export default function PeopleScreen() {
                     </Text>
                   </View>
                 )}
+
+                {item.status_message && (
+                  <Text 
+                    className="text-sm text-muted-foreground mt-1"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.status_message}
+                  </Text>
+                )}
               </View>
               
               <View className="flex-col space-y-2">
@@ -336,7 +372,13 @@ export default function PeopleScreen() {
                   onPress={() => toggleFollow(item.id)}
                 >
                   <UserPlus size={14} className="mr-1" />
-                  <Text className="text-xs">
+                  <Text 
+                    className={
+                      following.includes(item.id)
+                        ? "text-xs font-medium text-foreground dark:text-foreground"
+                        : "text-xs font-medium text-primary-foreground dark:text-primary-foreground"
+                    }
+                  >
                     {following.includes(item.id) ? 'Following' : 'Follow'}
                   </Text>
                 </Button>
@@ -348,7 +390,7 @@ export default function PeopleScreen() {
                   onPress={() => startDirectMessage(item.id, item.username)}
                 >
                   <MessageSquare size={14} className="mr-1" />
-                  <Text className="text-xs">Message</Text>
+                  <Text className="text-xs font-medium text-foreground dark:text-foreground">Message</Text>
                 </Button>
               </View>
             </View>

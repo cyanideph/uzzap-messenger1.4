@@ -58,7 +58,7 @@ export const themes: Record<ThemeType, ThemeColors> = {
     accent: 'hsl(240, 3.7%, 15.9%)',
     accentForeground: 'hsl(0, 0%, 98%)',
     muted: 'hsl(240, 3.7%, 15.9%)',
-    mutedForeground: 'hsl(240, 5%, 85%)', // Lighter muted text for better contrast
+    mutedForeground: 'hsl(240, 5%, 95%)', // Lighter muted text for better contrast
     border: 'hsl(240, 3.7%, 15.9%)',
     title: 'hsl(142, 76%, 36%)', // Green title for light mode
     titleDark: 'hsl(142, 71%, 45%)', // Brighter green for dark mode

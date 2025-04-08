@@ -8,8 +8,11 @@ import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { ArrowLeft, User, MapPin, Calendar, MessageSquare, Edit2, Camera, AtSign } from 'lucide-react-native';
-import { supabase, uploadAvatar } from '~/lib/supabase';
+import { supabase, uploadAvatar, getGalleryImages } from '~/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
+import { GalleryView } from '~/components/gallery/GalleryView';
+import { StatusUpdate } from '~/components/status/StatusUpdate';
+import { RelationshipActions } from '~/components/relationships/RelationshipActions';
 
 interface UserProfile {
   id: string;
@@ -23,6 +26,9 @@ interface UserProfile {
   followingCount: number;
   isSelf: boolean;
   isFollowing: boolean;
+  status_message?: string;
+  last_status_update?: string;
+  relationship?: string;
 }
 
 // Fetch a user profile from Supabase
@@ -36,13 +42,14 @@ export default function ProfileScreen() {
   const [editedProfile, setEditedProfile] = useState<Partial<UserProfile>>({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<any[]>([]);
 
   // Determine if this is the current user's profile
   const isSelfProfile = id === user?.id || id === 'me';
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
@@ -70,118 +77,93 @@ export default function ProfileScreen() {
 
     setUploading(true);
     try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const fetchTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timeout')), 30000)
+      );
 
-      const { data, error } = await uploadAvatar(user.id, file);
+      const fetchResponse = await Promise.race([fetch(uri), fetchTimeout]);
+      
+      if (!(fetchResponse instanceof Response)) {
+        throw new Error('Invalid response');
+      }
+
+      const blob = await fetchResponse.blob();
+      const file = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+      const { error } = await uploadAvatar(user.id, file);
 
       if (error) {
+        console.error('Error uploading avatar:', error);
         Alert.alert('Error', 'Failed to upload avatar');
       } else {
         Alert.alert('Success', 'Avatar uploaded successfully!');
-        fetchUserProfile(); // Refresh profile
+        fetchUserProfile();
       }
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Failed to upload avatar');
+      Alert.alert('Error', error.message || 'Failed to upload avatar');
     } finally {
       setUploading(false);
     }
   };
-  
+
   // Fetch user profile from Supabase
   const fetchUserProfile = async () => {
     try {
       setLoading(true);
-      
-      // Determine the actual user ID to fetch
+
       const profileId = (isSelfProfile && user) ? user.id : id;
-      
+
       if (!profileId) {
         console.error('No profile ID available');
         setLoading(false);
         return;
       }
-      
-      // Fetch user profile data
+
+      // Fetch user profile data with location in a single query
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, username, full_name, bio, avatar_url, created_at, status_message, last_status_update')
+        .select(`
+          *,
+          user_relationships!user_relationships_related_user_id_fkey(relationship_type),
+          users!inner(location)
+        `)
         .eq('id', profileId)
         .single();
-      
+
       if (profileError) {
         console.error('Error fetching profile:', profileError);
         setLoading(false);
         return;
       }
-      
-      // Fetch user location
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('location')
-        .eq('id', profileId)
-        .single();
-      
-      if (userError) {
-        console.error('Error fetching user location:', userError);
-      }
-      
-      // Fetch follower and following counts
-      const { count: followerCount, error: followerError } = await supabase
-        .from('user_follows')
-        .select('follower_id', { count: 'exact' })
-        .eq('following_id', profileId);
-      
-      if (followerError) {
-        console.error('Error fetching follower count:', followerError);
-      }
-      
-      const { count: followingCount, error: followingError } = await supabase
-        .from('user_follows')
-        .select('following_id', { count: 'exact' })
-        .eq('follower_id', profileId);
-      
-      if (followingError) {
-        console.error('Error fetching following count:', followingError);
-      }
-      
-      // Check if current user is following this profile
-      let isFollowing = false;
-      if (!isSelfProfile && user?.id) {
-        const { data: followData, error: followError } = await supabase
-          .from('user_follows')
-          .select('id')
-          .eq('follower_id', user.id)
-          .eq('following_id', profileId)
-          .single();
-        
-        isFollowing = !!followData;
-      }
-      
+
+      // Update location handling
+      const location = profileData.users?.location || 'Unknown';
+
       // Create user profile object
       const userProfile: UserProfile = {
         id: profileData.id,
         username: profileData.username,
         name: profileData.full_name || profileData.username,
         bio: profileData.bio || '',
-        location: userData?.location || 'Unknown',
+        location: location,
         avatar: profileData.avatar_url,
         joinDate: new Date(profileData.created_at),
-        followerCount: followerCount || 0,
-        followingCount: followingCount || 0,
+        followerCount: profileData.follower_count || 0,
+        followingCount: profileData.following_count || 0,
         isSelf: isSelfProfile,
-        isFollowing: isFollowing
+        isFollowing: profileData.is_following || false,
+        status_message: profileData.status_message || '',
+        last_status_update: profileData.last_status_update,
+        relationship: profileData.user_relationships?.[0]?.relationship_type,
       };
-      
+
       setProfile(userProfile);
       setEditedProfile({
         name: userProfile.name,
         username: userProfile.username,
         bio: userProfile.bio,
-        location: userProfile.location
+        location: userProfile.location,
       });
     } catch (error) {
       console.error('Unexpected error fetching profile:', error);
@@ -189,14 +171,23 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
-  
+
+  const fetchGalleryImages = async () => {
+    const profileId = (isSelfProfile && user) ? user.id : id;
+    const { data, error } = await getGalleryImages(profileId);
+    if (!error && data) {
+      setGalleryImages(data);
+    }
+  };
+
   useEffect(() => {
     fetchUserProfile();
+    fetchGalleryImages();
   }, [id, user?.id, isSelfProfile]);
-  
+
   const toggleFollow = async () => {
     if (!profile || !user?.id) return;
-    
+
     try {
       if (profile.isFollowing) {
         // Unfollow user
@@ -205,7 +196,7 @@ export default function ProfileScreen() {
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', profile.id);
-        
+
         if (error) {
           console.error('Error unfollowing user:', error);
           return;
@@ -217,42 +208,42 @@ export default function ProfileScreen() {
           .insert({
             follower_id: user.id,
             following_id: profile.id,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
           });
-        
+
         if (error) {
           console.error('Error following user:', error);
           return;
         }
       }
-      
+
       // Update local state
       setProfile({
         ...profile,
         isFollowing: !profile.isFollowing,
-        followerCount: profile.isFollowing 
-          ? profile.followerCount - 1 
-          : profile.followerCount + 1
+        followerCount: profile.isFollowing
+          ? profile.followerCount - 1
+          : profile.followerCount + 1,
       });
     } catch (error) {
       console.error('Unexpected error in toggleFollow:', error);
     }
   };
-  
+
   const saveProfile = async () => {
     if (!profile || !user?.id) return;
-    
+
     // Validate fields (basic validation)
     if (!editedProfile.name?.trim()) {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
-    
+
     if (!editedProfile.username?.trim()) {
       Alert.alert('Error', 'Username cannot be empty');
       return;
     }
-    
+
     try {
       // Check if username is already taken (if changed)
       if (editedProfile.username !== profile.username) {
@@ -262,47 +253,47 @@ export default function ProfileScreen() {
           .eq('username', editedProfile.username)
           .neq('id', user.id)
           .single();
-        
+
         if (existingUser) {
           Alert.alert('Error', 'Username is already taken');
           return;
         }
       }
-      
+
       // Update profile in Supabase
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           username: editedProfile.username,
           full_name: editedProfile.name,
-          bio: editedProfile.bio
+          bio: editedProfile.bio,
         })
         .eq('id', user.id);
-      
+
       if (profileError) {
         console.error('Error updating profile:', profileError);
         Alert.alert('Error', 'Failed to update profile');
         return;
       }
-      
+
       // Update location in users table
       if (editedProfile.location !== profile.location) {
         const { error: locationError } = await supabase
           .from('users')
           .update({ location: editedProfile.location })
           .eq('id', user.id);
-        
+
         if (locationError) {
           console.error('Error updating location:', locationError);
         }
       }
-      
+
       // Update local state
       setProfile({
         ...profile,
-        ...editedProfile
+        ...editedProfile,
       });
-      
+
       setIsEditing(false);
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
@@ -310,14 +301,14 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'An unexpected error occurred');
     }
   };
-  
+
   const formatJoinDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       month: 'long',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
-  
+
   if (!profile || loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -326,7 +317,7 @@ export default function ProfileScreen() {
       </View>
     );
   }
-  
+
   return (
     <>
       <Stack.Screen
@@ -334,7 +325,7 @@ export default function ProfileScreen() {
           headerShown: true,
           headerTitle: isEditing ? 'Edit Profile' : profile.name,
           headerLeft: () => (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 if (isEditing) {
                   // If editing, ask for confirmation before going back
@@ -343,22 +334,25 @@ export default function ProfileScreen() {
                     'Are you sure you want to discard your changes?',
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Discard', onPress: () => {
-                        setIsEditing(false);
-                        // Reset edited profile
-                        setEditedProfile({
-                          name: profile.name,
-                          username: profile.username,
-                          bio: profile.bio,
-                          location: profile.location
-                        });
-                      }}
+                      {
+                        text: 'Discard',
+                        onPress: () => {
+                          setIsEditing(false);
+                          // Reset edited profile
+                          setEditedProfile({
+                            name: profile.name,
+                            username: profile.username,
+                            bio: profile.bio,
+                            location: profile.location,
+                          });
+                        },
+                      },
                     ]
                   );
                 } else {
                   router.back();
                 }
-              }} 
+              }}
               className="mr-2"
             >
               <ArrowLeft size={24} color={isDarkColorScheme ? '#fff' : '#000'} />
@@ -373,7 +367,7 @@ export default function ProfileScreen() {
           ),
         }}
       />
-      
+
       <ScrollView className="flex-1 bg-background">
         <View className="p-4">
           {/* Profile Header */}
@@ -382,7 +376,7 @@ export default function ProfileScreen() {
               {/* Profile Image */}
               <View className="mb-4 relative">
                 {isEditing ? (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     className="w-24 h-24 rounded-full bg-primary/10 items-center justify-center"
                     onPress={() => {
                       if (uploading) return;
@@ -431,7 +425,7 @@ export default function ProfileScreen() {
                   </View>
                 )}
               </View>
-              
+
               {/* Profile Information */}
               {isEditing ? (
                 <View className="w-full px-2">
@@ -439,11 +433,11 @@ export default function ProfileScreen() {
                   <TextInput
                     className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
                     value={editedProfile.name}
-                    onChangeText={(text) => setEditedProfile({...editedProfile, name: text})}
+                    onChangeText={(text) => setEditedProfile({ ...editedProfile, name: text })}
                     placeholder="Your name"
                     placeholderTextColor="#9ca3af"
                   />
-                  
+
                   <View className="flex-row items-center mb-1">
                     <AtSign size={14} className="text-muted-foreground mr-1" />
                     <Text className="font-medium">Username</Text>
@@ -451,11 +445,11 @@ export default function ProfileScreen() {
                   <TextInput
                     className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
                     value={editedProfile.username}
-                    onChangeText={(text) => setEditedProfile({...editedProfile, username: text})}
+                    onChangeText={(text) => setEditedProfile({ ...editedProfile, username: text })}
                     placeholder="Your username"
                     placeholderTextColor="#9ca3af"
                   />
-                  
+
                   <View className="flex-row items-center mb-1">
                     <MapPin size={14} className="text-muted-foreground mr-1" />
                     <Text className="font-medium">Location</Text>
@@ -463,108 +457,132 @@ export default function ProfileScreen() {
                   <TextInput
                     className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
                     value={editedProfile.location}
-                    onChangeText={(text) => setEditedProfile({...editedProfile, location: text})}
+                    onChangeText={(text) => setEditedProfile({ ...editedProfile, location: text })}
                     placeholder="Your location"
                     placeholderTextColor="#9ca3af"
                   />
-                  
+
                   <Text className="font-medium mb-1">Bio</Text>
                   <TextInput
                     className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
                     value={editedProfile.bio}
-                    onChangeText={(text) => setEditedProfile({...editedProfile, bio: text})}
+                    onChangeText={(text) => setEditedProfile({ ...editedProfile, bio: text })}
                     placeholder="Tell us about yourself"
                     placeholderTextColor="#9ca3af"
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
                   />
-                  
-                  <Button 
-                    className="mt-2" 
-                    onPress={saveProfile}
-                  >
-                    Save Profile
+
+                  <Button className="w-full mt-4" onPress={saveProfile}>
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text className="text-white font-semibold">Save Profile</Text>
+                    )}
                   </Button>
                 </View>
               ) : (
                 <>
-                  <Text className="text-xl font-bold">{profile.name}</Text>
-                  <Text className="text-muted-foreground mb-2">@{profile.username}</Text>
-                  
                   <View className="flex-row items-center mb-2">
-                    <MapPin size={14} className="text-muted-foreground mr-1" />
-                    <Text className="text-sm text-muted-foreground">{profile.location}</Text>
+                    <User size={16} className="text-muted-foreground mr-1" />
+                    <Text className="font-semibold">{profile.name}</Text>
+                    {profile.relationship === 'friend' && <Badge className="ml-2">Friend</Badge>}
                   </View>
-                  
+
                   <View className="flex-row items-center mb-4">
-                    <Calendar size={14} className="text-muted-foreground mr-1" />
-                    <Text className="text-sm text-muted-foreground">
-                      Joined {formatJoinDate(profile.joinDate)}
-                    </Text>
+                    <AtSign size={14} className="text-muted-foreground mr-1" />
+                    <Text className="text-muted-foreground">{profile.username}</Text>
                   </View>
-                  
-                  <Text className="text-center text-foreground mb-4">
-                    {profile.bio}
-                  </Text>
-                  
-                  <View className="flex-row justify-around w-full mb-4">
-                    <View className="items-center">
-                      <Text className="text-lg font-bold">{profile.followerCount}</Text>
-                      <Text className="text-muted-foreground">Followers</Text>
-                    </View>
-                    <View className="items-center">
-                      <Text className="text-lg font-bold">{profile.followingCount}</Text>
-                      <Text className="text-muted-foreground">Following</Text>
-                    </View>
+
+                  <View className="flex-row items-center mb-4">
+                    <MapPin size={14} className="text-muted-foreground mr-1" />
+                    <Text className="text-muted-foreground">{profile.location}</Text>
                   </View>
-                  
-                  {!profile.isSelf && (
-                    <View className="flex-row w-full space-x-2">
-                      <Button 
-                        variant={profile.isFollowing ? "outline" : "default"}
-                        className="flex-1"
-                        onPress={toggleFollow}
-                      >
-                        <Text className={profile.isFollowing ? "text-foreground" : "text-primary-foreground"}>
-                          {profile.isFollowing ? 'Following' : 'Follow'}
-                        </Text>
-                      </Button>
-                      
-                      <Button 
-                        variant="outline"
-                        className="flex-1"
-                        onPress={() => router.push({
-                          pathname: "/direct-message/[id]",
-                          params: { id: profile.id, username: profile.username }
-                        })}
-                      >
-                        <MessageSquare size={16} className="text-foreground mr-1" />
-                        <Text>Message</Text>
-                      </Button>
+
+                  {isSelfProfile ? (
+                    <StatusUpdate
+                      userId={user?.id || ''}
+                      currentStatus={profile.status_message || ''}
+                      lastUpdate={profile.last_status_update || ''}
+                      onStatusUpdated={fetchUserProfile}
+                    />
+                  ) : profile.status_message ? (
+                    <View className="mt-4 p-4 bg-muted rounded-lg">
+                      <Text className="text-sm italic text-foreground">{profile.status_message}</Text>
                     </View>
-                  )}
+                  ) : null}
                 </>
               )}
             </View>
+
+            <View className="flex-row justify-around w-full mb-4">
+              <View className="items-center">
+                <Text className="text-lg font-semibold">{profile.followerCount}</Text>
+                <Text className="text-sm text-muted-foreground">Followers</Text>
+              </View>
+
+              <View className="items-center">
+                <Text className="text-lg font-semibold">{profile.followingCount}</Text>
+                <Text className="text-sm text-muted-foreground">Following</Text>
+              </View>
+            </View>
+
+            <View className="flex-row w-full space-x-2">
+              {!profile.isSelf && (
+                <Button
+                  variant={profile.isFollowing ? 'secondary' : 'default'}
+                  className="flex-1"
+                  onPress={toggleFollow}
+                >
+                  {profile.isFollowing ? 'Unfollow' : 'Follow'}
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                className="flex-1"
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/direct-message/[id]',
+                    params: {
+                      id: profile.id,
+                      username: profile.username,
+                    },
+                  })
+                }
+              >
+                <MessageSquare size={16} className="text-foreground mr-1" />
+                <Text>Message</Text>
+              </Button>
+            </View>
           </Card>
-          
-          {/* Recent Activity */}
-          {!isEditing && (
+
+          {/* Gallery Section */}
+          <Card className="p-4 mb-6 border border-border">
             <>
-              <Text className="text-lg font-semibold mb-3">Recent Activity</Text>
-              <Card className="p-4 mb-6 border border-border">
-                <View className="items-center p-4">
-                  <User size={40} className="text-muted-foreground mb-2" />
-                  <Text className="text-center text-muted-foreground">
-                    No recent activity to show
-                  </Text>
-                  <Text className="text-center text-xs text-muted-foreground mt-1">
-                    Activity feature coming soon!
-                  </Text>
-                </View>
-              </Card>
+              <View className="items-center p-4">
+                <Text className="text-lg font-semibold">Gallery</Text>
+              </View>
+
+              {/* Gallery View */}
+              <GalleryView
+                images={galleryImages}
+                userId={user?.id || ''}
+                isOwner={isSelfProfile}
+                onImageAdded={() => {}}
+                onImageDeleted={() => {}}
+              />
             </>
+          </Card>
+
+          {profile && !isSelfProfile && user?.id && (
+            <RelationshipActions
+              userId={user.id}
+              targetId={profile.id}
+              relationshipType={profile.relationship}
+              onRelationshipChange={fetchUserProfile}
+            />
           )}
         </View>
       </ScrollView>

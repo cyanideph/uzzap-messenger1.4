@@ -4,9 +4,14 @@ import { createClient, SupabaseClient } from 'supabase';
 import { BotCommand, processCommand } from './commands.ts';
 
 // Bot configuration
-const BOT_ID = '00000000-0000-0000-0000-000000000666';
-const BOT_EMAIL = 'uzzapbot@uzzap.com';
-const BOT_PASSWORD = 'bisdak'; // This should be in environment variables in production
+// Remove hardcoded credentials
+const BOT_ID = Deno.env.get('BOT_ID') || '';
+const BOT_EMAIL = Deno.env.get('BOT_EMAIL') || '';
+const BOT_PASSWORD = Deno.env.get('BOT_PASSWORD') || '';
+
+if (!BOT_ID || !BOT_EMAIL || !BOT_PASSWORD) {
+  throw new Error('Bot credentials not properly configured in environment variables');
+}
 
 export interface BotRequest {
   userId: string;
@@ -60,10 +65,21 @@ serve(async (req: Request) => {
     console.log('Supabase Service Key:', supabaseServiceKey);
     const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Authenticate as bot
+    // Get bot credentials from database
+    const { data: botConfig, error: botConfigError } = await supabase
+      .from('bot_config')
+      .select('bot_id, email, password_hash')
+      .single();
+
+    if (botConfigError || !botConfig) {
+      console.error('Error fetching bot config:', botConfigError);
+      throw new Error('Bot configuration not found');
+    }
+
+    // Authenticate as bot using database credentials
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: BOT_EMAIL,
-      password: BOT_PASSWORD,
+      email: botConfig.email,
+      password: botConfig.password_hash,
     });
 
     if (authError) {
@@ -104,7 +120,7 @@ serve(async (req: Request) => {
           .from('messages')
           .insert({
             chatroom_id: chatroomId,
-            user_id: BOT_ID,
+            user_id: botConfig.bot_id,
             content: commandResponse,
             created_at: new Date().toISOString(),
           });
@@ -121,7 +137,7 @@ serve(async (req: Request) => {
         const { error: dmError } = await supabase
           .from('direct_messages')
           .insert({
-            sender_id: BOT_ID,
+            sender_id: botConfig.bot_id,
             recipient_id: userId,
             content: commandResponse,
             created_at: new Date().toISOString(),
@@ -139,7 +155,7 @@ serve(async (req: Request) => {
         const { data: convoData, error: convoCheckError } = await supabase
           .from('conversations')
           .select('id')
-          .or(`user1_id.eq.${BOT_ID},user2_id.eq.${BOT_ID}`)
+          .or(`user1_id.eq.${botConfig.bot_id},user2_id.eq.${botConfig.bot_id}`)
           .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
         if (convoCheckError) {
@@ -155,7 +171,7 @@ serve(async (req: Request) => {
           await supabase
             .from('conversations')
             .insert({
-              user1_id: BOT_ID,
+              user1_id: botConfig.bot_id,
               user2_id: userId,
               last_message_at: new Date().toISOString(),
               created_at: new Date().toISOString(),

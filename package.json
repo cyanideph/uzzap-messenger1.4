@@ -82,5 +82,44 @@
     "@types/react": "~18.3.12",
     "typescript": "^5.3.3"
   },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "lucide-react-native",
+          "react-native-emoji-selector",
+          "@emoji-mart/data",
+          "@emoji-mart/react",
+          "@rn-primitives/alert-dialog",
+          "@rn-primitives/aspect-ratio",
+          "@rn-primitives/avatar",
+          "@rn-primitives/checkbox",
+          "@rn-primitives/collapsible",
+          "@rn-primitives/context-menu",
+          "@rn-primitives/dialog",
+          "@rn-primitives/dropdown-menu",
+          "@rn-primitives/hover-card",
+          "@rn-primitives/label",
+          "@rn-primitives/menubar",
+          "@rn-primitives/navigation-menu",
+          "@rn-primitives/popover",
+          "@rn-primitives/portal",
+          "@rn-primitives/progress",
+          "@rn-primitives/select",
+          "@rn-primitives/slot",
+          "@rn-primitives/table",
+          "@rn-primitives/tabs",
+          "@rn-primitives/toggle-group",
+          "@rn-primitives/tooltip",
+          "@rn-primitives/types",
+          "class-variance-authority",
+          "emoji-mart",
+          "react-native-color-picker",
+          "tailwindcss",
+          "tailwindcss-animate"
+        ]
+      }
+    }
+  },
   "private": true
 }
