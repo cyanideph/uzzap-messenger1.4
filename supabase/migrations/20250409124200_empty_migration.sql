@@ -1,0 +1,1 @@
+-- This is an empty migration to trigger a schema refresh.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StatusBar, Platform } from 'react-native';
+import { View, StatusBar } from 'react-native';
 import { Stack } from 'expo-router';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { CustomHeader } from '~/components/ui/custom-header';
@@ -10,19 +10,11 @@ export default function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   return (
-    <View className="flex-1">
-      <StatusBar
-        barStyle={isDarkColorScheme ? 'light-content' : 'dark-content'}
-        backgroundColor="transparent"
-        translucent
-      />
-      
-      {/* Custom Header */}
+    <View className="flex-1 bg-background">
       <CustomHeader 
         onOpenSidebar={() => setIsSidebarOpen(true)} 
       />
       
-      {/* Main Content */}
       <Stack
         screenOptions={{
           headerShown: false,
@@ -32,7 +24,6 @@ export default function AppLayout() {
         }}
       />
       
-      {/* Sidebar */}
       <Sidebar 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 

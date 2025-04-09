@@ -1,54 +1,46 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
+import { View, TouchableOpacity, Image, StatusBar, Platform } from 'react-native';
 import { Text } from '~/components/ui/text';
 import { useColorScheme } from '~/lib/useColorScheme';
-import { Menu, Bell } from 'lucide-react-native';
-import { router, usePathname, useLocalSearchParams } from 'expo-router';
+import { Menu } from 'lucide-react-native';
+import { Bell } from 'lucide-react-native';
+import { router, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CustomHeaderProps {
   title?: string;
-  onOpenSidebar: () => void;
+  onOpenSidebar?: () => void;
   rightComponent?: React.ReactNode;
 }
+
+// Map routes to titles
+const routeTitles: { [key: string]: string } = {
+  '/chatrooms': 'Chatrooms',
+  '/messages': 'Messages',
+  '/people': 'People',
+  '/friends': 'Friends',
+  '/settings': 'Settings',
+  '/help': 'Help Center',
+  '/about': 'About',
+};
 
 export function CustomHeader({ title, onOpenSidebar, rightComponent }: CustomHeaderProps) {
   const { isDarkColorScheme } = useColorScheme();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   
-  // Determine title based on current route if not provided
-  const getRouteTitle = () => {
-    if (title) return title;
-
-    const { title: paramTitle } = useLocalSearchParams();
-    
-    if (paramTitle) {
-      return String(paramTitle);
-    }
-    
-    const routeTitles: Record<string, string> = {
-      '/(app)/home': 'Home',
-      '/(app)/chatrooms': 'Chatrooms',
-      '/(app)/messages': 'Messages',
-      '/(app)/people': 'People',
-      '/(app)/settings': 'Settings',
-      '/(app)/help': 'Help Center',
-      '/(app)/about': 'About UzZap',
-    };
-
-    if (pathname in routeTitles) {
-      return routeTitles[pathname];
-    }
-
-    return 'UzZap';
-  };
-  
-  const routeTitle = getRouteTitle();
+  // Get the route title or use provided title
+  const routeTitle = title || routeTitles[pathname] || '';
 
   return (
     <View
       className={`px-4 border-b z-10 ${
         isDarkColorScheme ? 'bg-background border-border' : 'bg-white border-gray-200'
-      } pt-[${StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 10}px] pb-2.5`}
+      }`}
+      style={{
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : insets.top,
+        paddingBottom: 10,
+      }}
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center">

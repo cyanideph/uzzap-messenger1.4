@@ -4,7 +4,7 @@ import { DarkTheme, DefaultTheme, Theme, ThemeProvider } from '@react-navigation
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, SafeAreaView } from 'react-native';
 import { NAV_THEME } from '~/lib/constants';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
@@ -40,7 +40,6 @@ export default function RootLayout() {
     }
 
     if (Platform.OS === 'web') {
-      // Adds the background color to the html element to prevent white background on overscroll.
       document.documentElement.classList.add('bg-background');
     }
     setAndroidNavigationBar(colorScheme);
@@ -55,27 +54,34 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
       <AuthProvider>
-        <Stack>
-          <Stack.Screen
-            name="(auth)"
-            options={{
-              headerShown: false,
-            }}
+        <SafeAreaView style={{ flex: 1 }}>
+          <StatusBar
+            style={isDarkColorScheme ? 'light' : 'dark'}
+            backgroundColor="transparent"
+            translucent
           />
-          <Stack.Screen
-            name="(app)"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false,
-            }}
-          />
-        </Stack>
-        <PortalHost />
+          <Stack>
+            <Stack.Screen
+              name="(auth)"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="(app)"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="index"
+              options={{
+                headerShown: false,
+              }}
+            />
+          </Stack>
+          <PortalHost />
+        </SafeAreaView>
       </AuthProvider>
     </ThemeProvider>
   );

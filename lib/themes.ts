@@ -51,17 +51,17 @@ export const themes: Record<ThemeType, ThemeColors> = {
     foreground: 'hsl(0, 0%, 98%)', // Very light text for better contrast in dark mode
     card: 'hsl(240, 10%, 3.9%)',
     cardForeground: 'hsl(0, 0%, 98%)',
-    primary: 'hsl(0, 0%, 98%)',
+    primary: 'hsl(240, 10%, 95%)', // Lighter primary for dark mode
     primaryForeground: 'hsl(240, 5.9%, 10%)',
     secondary: 'hsl(240, 3.7%, 15.9%)',
     secondaryForeground: 'hsl(0, 0%, 98%)',
     accent: 'hsl(240, 3.7%, 15.9%)',
     accentForeground: 'hsl(0, 0%, 98%)',
     muted: 'hsl(240, 3.7%, 15.9%)',
-    mutedForeground: 'hsl(240, 5%, 95%)', // Lighter muted text for better contrast
+    mutedForeground: 'hsl(240, 5%, 84%)', // Much lighter muted text for better contrast
     border: 'hsl(240, 3.7%, 15.9%)',
-    title: 'hsl(142, 76%, 36%)', // Green title for light mode
-    titleDark: 'hsl(142, 71%, 45%)', // Brighter green for dark mode
+    title: 'hsl(142, 71%, 45%)',
+    titleDark: 'hsl(142, 71%, 45%)',
   },
   pastel: {
     name: 'Pastel',

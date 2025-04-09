@@ -225,11 +225,11 @@ export default function MessagesScreen() {
                       {item.avatar ? (
                         <Image 
                           source={{ uri: item.avatar }} 
-                          className="w-12 h-12 rounded-full"
+                          className="w-12 h-12 rounded-full bg-muted"
                         />
                       ) : (
-                        <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center">
-                          <Text className="text-primary text-lg font-semibold">
+                        <View className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+                          <Text className="text-lg font-semibold text-primary-foreground">
                             {item.name ? item.name.substring(0, 1).toUpperCase() : ''}
                           </Text>
                         </View>
@@ -241,13 +241,13 @@ export default function MessagesScreen() {
                     
                     <View className="flex-1 justify-center">
                       <View className="flex-row justify-between items-center mb-1">
-                        <Text className="font-semibold">{item.name}</Text>
+                        <Text className="font-semibold text-foreground">{item.name}</Text>
                         <Text className="text-xs text-muted-foreground">{item.timestamp}</Text>
                       </View>
                       
                       <View className="flex-row justify-between items-center">
                         <Text 
-                          className={`text-sm ${item.unread > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}
+                          className={`text-sm flex-1 ${item.unread > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}
                           numberOfLines={1}
                           ellipsizeMode="tail"
                         >
@@ -256,7 +256,7 @@ export default function MessagesScreen() {
                         
                         {item.unread > 0 && (
                           <Badge className="bg-primary ml-2 min-w-[20px] h-5 rounded-full">
-                            <Text className="text-xs text-white text-center">
+                            <Text className="text-xs text-primary-foreground text-center">
                               {item.unread}
                             </Text>
                           </Badge>

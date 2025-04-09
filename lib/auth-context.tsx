@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ? { ...session.user, username: session.user.email?.split('@')[0] || null } : null);
+      console.log("User ID:", session?.user?.id);
       setLoading(false);
 
       if (event === 'SIGNED_IN') {
@@ -59,11 +60,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (!profile && session?.user) {
             console.log('Creating new profile for user:', session.user.id);
+            const username = session.user.email ? session.user.email.split('@')[0] : 'user';
+            
             const { error: insertError } = await supabase.from('profiles').insert([
               {
                 id: session.user.id,
-                username: session.user.email ? session.user.email.split('@')[0] : 'user',
-                displayName: session.user.email ? session.user.email.split('@')[0] : 'user',
+                username: username,
+                full_name: username,
                 created_at: new Date().toISOString(),
                 status_message: null,
                 last_status_update: null,
@@ -77,7 +80,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               // Also create a user record in the users table
               const { error: userError } = await supabase.from('users').insert([
                 {
-                  id: session?.user?.id,
+                  id: session.user.id,
                   created_at: new Date().toISOString(),
                 },
               ]);

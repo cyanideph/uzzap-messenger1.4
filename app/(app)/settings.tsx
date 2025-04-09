@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Switch, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Switch, Alert, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
 import { Text } from '~/components/ui/text';
 import { Card } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
@@ -7,6 +7,8 @@ import { Separator } from '~/components/ui/separator';
 import { useAuth } from '~/lib/auth-context';
 import { router } from 'expo-router';
 import { useColorScheme } from '~/lib/useColorScheme';
+import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 import {
   Moon,
   Sun,
@@ -18,7 +20,9 @@ import {
   ChevronRight,
   Mail,
   Globe,
+  Camera,
 } from 'lucide-react-native';
+import { supabase } from '~/lib/supabase';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -26,14 +30,61 @@ export default function SettingsScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.user_metadata?.avatar_url || null);
 
-  const handleSignOut = async () => {
-    setIsLoading(true);
+  const uploadAvatar = async () => {
     try {
-      await signOut();
-      // Navigation will be handled by auth-context.tsx
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Unable to sign out');
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setIsLoading(true);
+
+        // Upload image to Supabase Storage
+        const fileName = `avatar_${user?.id}_${Date.now()}.jpg`;
+        const filePath = `avatars/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('user-content')
+          .upload(filePath, decode(result.assets[0].base64), {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          Alert.alert('Error', 'Failed to upload avatar');
+          console.error('Upload error:', uploadError);
+          return;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('user-content')
+          .getPublicUrl(filePath);
+
+        // Update user metadata
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { avatar_url: publicUrl },
+        });
+
+        if (updateError) {
+          Alert.alert('Error', 'Failed to update profile');
+          console.error('Update error:', updateError);
+          return;
+        }
+
+        setAvatarUrl(publicUrl);
+        Alert.alert('Success', 'Avatar updated successfully');
+      }
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      Alert.alert('Error', 'An error occurred while uploading avatar');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -49,6 +100,17 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleSignOut = async () => {
+    setIsLoading(true);
+    try {
+      await signOut();
+      // Navigation will be handled by auth-context.tsx
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Unable to sign out');
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ScrollView className="flex-1 bg-background">
       <View className="p-4">
@@ -57,11 +119,26 @@ export default function SettingsScreen() {
         {/* Account Section */}
         <Card className="p-4 mb-6 border border-border">
           <View className="flex-row items-center mb-4">
-            <View className="w-10 h-10 rounded-full bg-primary flex items-center justify-center mr-3">
-              <Text className="text-white text-lg font-bold">
-                {user?.email?.substring(0, 1).toUpperCase() || 'U'}
-              </Text>
-            </View>
+            <TouchableOpacity 
+              onPress={uploadAvatar}
+              className="relative mr-3"
+            >
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  className="w-16 h-16 rounded-full"
+                />
+              ) : (
+                <View className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
+                  <Text className="text-primary-foreground text-xl font-bold">
+                    {user?.email?.substring(0, 1).toUpperCase() || 'U'}
+                  </Text>
+                </View>
+              )}
+              <View className="absolute right-0 bottom-0 bg-primary rounded-full p-1">
+                <Camera size={12} color="#fff" />
+              </View>
+            </TouchableOpacity>
             <View className="flex-1">
               <Text className="font-semibold">
                 {user?.email?.split('@')[0] || 'User'}
@@ -196,7 +273,7 @@ export default function SettingsScreen() {
               className="justify-start h-12 pl-1"
               onPress={() => router.push('/about')}
             >
-              <Text className="mr-3"><Text>ℹ️</Text></Text>
+              <Text className="mr-3">ℹ️</Text>
               <Text>About UzZap</Text>
               <Text className="text-muted-foreground ml-auto mr-1">v1.0.0</Text>
               <ChevronRight size={18} className="text-muted-foreground" />

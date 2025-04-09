@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  ScrollView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -9,19 +8,17 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Text } from '~/components/ui/text';
-import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
-import { Send, ArrowLeft, MoreVertical, Phone, Video, User, Bot, Smile, Paperclip } from 'lucide-react-native';
+import { Send, ArrowLeft, Phone, Video, Smile, Paperclip } from 'lucide-react-native';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { supabase } from '~/lib/supabase';
-import { sendMessageToBot, isBot, getBotCommands } from '~/lib/bot';
-import { trackActivity, markMessageAsRead } from '~/lib/activity';
+import { trackActivity } from '~/lib/activity';
 import { ReadReceipts } from '~/components/messages/ReadReceipts';
+import { ChatBubble } from '~/components/messages/ChatBubble';
 
 // Type definitions for Supabase data
 interface Profile {
@@ -131,7 +128,7 @@ export default function DirectMessageScreen() {
         const { data: messagesData, error: messagesError } = await supabase
           .from('direct_messages')
           .select('id, sender_id, recipient_id, content, created_at, is_read')
-          .or(`sender_id.eq.${user.id}.and.recipient_id.eq.${id},sender_id.eq.${id}.and.recipient_id.eq.${user.id}`)
+          .or(`sender_id=eq.${user.id},recipient_id=eq.${id},sender_id=eq.${id},recipient_id=eq.${user.id}`)
           .order('created_at', { ascending: true });
 
         if (messagesError) {
@@ -181,7 +178,7 @@ export default function DirectMessageScreen() {
         event: 'INSERT',
         schema: 'public',
         table: 'direct_messages',
-        filter: `or(and(sender_id.eq.${user.id},recipient_id.eq.${id}),and(sender_id.eq.${id},recipient_id.eq.${user.id}))`
+        filter: `sender_id=eq.${user.id},recipient_id=eq.${id}`
       }, async (payload) => {
         const newMsg = payload.new as DMData;
         const isCurrentUser = newMsg.sender_id === user.id;
@@ -236,49 +233,20 @@ export default function DirectMessageScreen() {
 
     try {
       const messageContent = message.trim();
+      
+      // Regular message
+      const { error } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          recipient_id: id,
+          content: messageContent,
+          is_read: false
+        });
 
-      // Check if the recipient is the bot
-      const isBotRecipient = id === '00000000-0000-0000-0000-000000000666';
-
-      // Check if this is a bot command or message to the bot
-      if (messageContent.startsWith('/') || isBotRecipient) {
-        // Save user's message to database
-        const { error } = await supabase
-          .from('direct_messages')
-          .insert({
-            sender_id: user.id,
-            recipient_id: id,
-            content: messageContent,
-            is_read: false
-          });
-
-        if (error) {
-          console.error('Error saving user message:', error);
-          return;
-        }
-
-        // Call the bot with this command/message
-        const botResponse = await sendMessageToBot(messageContent, user.id);
-
-        if (!botResponse) {
-          console.log('No response from bot or error occurred');
-        }
-        // Note: The bot response will be handled by the subscription
-      } else {
-        // Regular message to another user
-        const { error } = await supabase
-          .from('direct_messages')
-          .insert({
-            sender_id: user.id,
-            recipient_id: id,
-            content: messageContent,
-            is_read: false
-          });
-
-        if (error) {
-          console.error('Error sending message:', error);
-          return;
-        }
+      if (error) {
+        console.error('Error sending message:', error);
+        return;
       }
 
       // Track message send
@@ -323,18 +291,6 @@ export default function DirectMessageScreen() {
     }
   };
 
-  // Show bot commands when user taps the bot button
-  const showBotCommands = () => {
-    const commands = getBotCommands();
-    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('\n');
-
-    Alert.alert(
-      'UzZap Bot Commands',
-      commandsText,
-      [{ text: 'OK', style: 'default' }]
-    );
-  };
-
   // Group messages by date
   const groupedMessages: { [key: string]: DirectMessage[] } = {};
   messages.forEach(msg => {
@@ -354,9 +310,9 @@ export default function DirectMessageScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.select({ ios: 'padding', android: 'height' })}
       className="flex-1"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.select({ ios: 90, android: 0 })}
     >
       <Stack.Screen
         options={{
@@ -384,9 +340,6 @@ export default function DirectMessageScreen() {
           ),
           headerRight: () => (
             <View className="flex-row space-x-4">
-              <TouchableOpacity onPress={showBotCommands}>
-                <Bot size={20} className="text-primary" />
-              </TouchableOpacity>
               <TouchableOpacity onPress={() => {/* Add voice call functionality */}}>
                 <Phone size={20} color={isDarkColorScheme ? '#fff' : '#000'} />
               </TouchableOpacity>
@@ -401,7 +354,7 @@ export default function DirectMessageScreen() {
       <View className="flex-1 bg-background">
         {loading ? (
           <View className="flex-1 justify-center items-center">
-            <ActivityIndicator size="large" color="#0000ff" />
+            <ActivityIndicator size="large" color="#6366F1" />
             <Text className="mt-4 text-muted-foreground">Loading messages...</Text>
           </View>
         ) : (
@@ -412,11 +365,9 @@ export default function DirectMessageScreen() {
             contentContainerStyle={{ paddingTop: 16, paddingBottom: 8, paddingHorizontal: 16 }}
             initialNumToRender={25}
             onContentSizeChange={() => {
-              // Initial scroll to bottom
               flatListRef.current?.scrollToEnd({ animated: false });
             }}
             renderItem={({ item }) => {
-              // Render date divider
               if ('isDateDivider' in item && item.isDateDivider) {
                 return (
                   <View className="flex-row justify-center my-4">
@@ -427,45 +378,25 @@ export default function DirectMessageScreen() {
                 );
               }
 
-              // Render message
               const message = item as DirectMessage;
-              const isBotMessage = isBot(message.userId);
 
               return (
-                <View 
-                  className={`mb-2 max-w-[80%] ${message.isCurrentUser ? 'self-end' : 'self-start'}`}
-                  style={{ alignSelf: message.isCurrentUser ? 'flex-end' : 'flex-start' }}
+                <View
+                  className={`mb-4 max-w-[80%] flex ${message.isCurrentUser ? 'self-end' : 'self-start'}`}
                 >
-                  {isBotMessage && !message.isCurrentUser && (
-                    <View className="flex-row items-center mb-1">
-                      <Text className="text-xs text-muted-foreground">UzZap Bot</Text>
-                      <Badge className="ml-1 py-0" variant="secondary">
-                        <Bot size={10} className="mr-1" />
-                        <Text className="text-[9px]"><Text>BOT</Text></Text>
-                      </Badge>
-                    </View>
-                  )}
-
                   <View className="flex-row items-end">
-                    <View 
-                      className={`rounded-2xl p-3 ${
-                        message.isCurrentUser 
-                          ? 'bg-primary' 
-                          : isBotMessage
-                            ? 'bg-secondary border border-border'
-                            : 'bg-muted border border-border'
-                      }`}
-                    >
-                      <Text 
-                        className={message.isCurrentUser 
-                          ? 'text-primary-foreground' 
-                          : isBotMessage 
-                            ? 'text-secondary-foreground' 
-                            : 'text-foreground'}
-                      >
-                        {message.text}
-                      </Text>
-                    </View>
+                    {!message.isCurrentUser && message.userAvatar && (
+                      <Image
+                        source={{ uri: message.userAvatar }}
+                        className="w-6 h-6 rounded-full bg-muted mr-2"
+                      />
+                    )}
+                    
+                    <ChatBubble
+                      message={message.text || ""}
+                      isCurrentUser={message.isCurrentUser}
+                    />
+                    
                     {message.isCurrentUser && (
                       <View className="ml-2">
                         <ReadReceipts
@@ -475,6 +406,7 @@ export default function DirectMessageScreen() {
                       </View>
                     )}
                   </View>
+                  
                   <Text
                     className="text-xs text-muted-foreground mt-1"
                     style={{ alignSelf: message.isCurrentUser ? 'flex-end' : 'flex-start' }}
@@ -487,35 +419,40 @@ export default function DirectMessageScreen() {
           />
         )}
 
-        <View className="border-t border-border p-2 bg-background">
-          <View className="flex-row items-center bg-muted rounded-full p-1">
-            <View className="flex-row space-x-1 p-1">
-              <TouchableOpacity className="p-2" onPress={showBotCommands}>
-                <Bot size={22} className="text-primary" />
+        <View className="border-t border-border px-2 py-1 bg-background">
+          <View className="flex-row items-center bg-muted rounded-2xl">
+            <View className="flex-row space-x-1 py-1 px-2">
+              <TouchableOpacity
+                className="p-2 android:p-1.5 android:m-0.5 rounded-full active:bg-muted-foreground/10"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Smile size={Platform.OS === 'android' ? 20 : 22} className="text-muted-foreground" />
               </TouchableOpacity>
-              <TouchableOpacity className="p-2">
-                <Smile size={22} className="text-muted-foreground" />
-              </TouchableOpacity>
-              <TouchableOpacity className="p-2">
-                <Paperclip size={22} className="text-muted-foreground" />
+              <TouchableOpacity
+                className="p-2 android:p-1.5 android:m-0.5 rounded-full active:bg-muted-foreground/10"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Paperclip size={Platform.OS === 'android' ? 20 : 22} className="text-muted-foreground" />
               </TouchableOpacity>
             </View>
 
             <TextInput
-              className="flex-1 h-10 px-3 text-foreground"
-              placeholder="Message..."
+              className="flex-1 min-h-[40px] android:min-h-[44px] px-3 text-foreground"
+              placeholder="Type a message"
               placeholderTextColor="#9ca3af"
               value={message}
               onChangeText={setMessage}
               multiline
               maxLength={500}
             />
+            
             {message.trim() !== '' && (
-              <TouchableOpacity 
-                className="bg-primary w-10 h-10 rounded-full items-center justify-center mr-1"
+              <TouchableOpacity
+                className="bg-primary w-10 h-10 android:w-11 android:h-11 rounded-full items-center justify-center m-1"
                 onPress={sendMessage}
+                activeOpacity={0.7}
               >
-                <Send size={18} color="#ffffff" />
+                <Send size={Platform.OS === 'android' ? 20 : 18} color="#ffffff" />
               </TouchableOpacity>
             )}
           </View>

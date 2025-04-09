@@ -2,6 +2,9 @@
   "name": "uzzap",
   "main": "index.js",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "expo start",
     "dev:web": "expo start -c --web",
@@ -41,11 +44,16 @@
     "@rn-primitives/toggle-group": "^1.1.0",
     "@rn-primitives/tooltip": "~1.1.0",
     "@rn-primitives/types": "~1.1.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "base64-arraybuffer": "^1.0.2",
+    "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "crypto-browserify": "^3.12.0",
     "date-fns": "^4.1.0",
     "emoji-mart": "^5.6.0",
     "expo": "^52.0.25",
+    "expo-dev-client": "~5.0.19",
     "expo-image": "^2.0.7",
     "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.4",
@@ -55,9 +63,11 @@
     "expo-splash-screen": "~0.29.20",
     "expo-status-bar": "~2.0.1",
     "expo-system-ui": "~4.0.7",
+    "install": "^0.13.0",
     "lucide-react-native": "^0.378.0",
     "native-base": "^2.15.2",
     "nativewind": "^4.1.23",
+    "path-browserify": "^1.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.9",
@@ -71,16 +81,27 @@
     "react-native-tab-view": "^4.0.8",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.19.13",
+    "stream-browserify": "^3.0.0",
     "tailwind-merge": "^2.2.1",
     "tailwindcss": "3.3.5",
     "tailwindcss-animate": "^1.0.7",
+    "util": "^0.12.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
-    "@supabase/supabase-js": "^2.49.4",
     "@types/react": "~18.3.12",
     "typescript": "^5.3.3"
+  },
+  "resolutions": {
+    "@expo/config-plugins": "~7.8.0",
+    "@expo/prebuild-config": "~6.7.0"
+  },
+  "overrides": {
+    "@expo/config-plugins": "~7.8.0",
+    "@expo/prebuild-config": "~6.7.0",
+    "metro": "0.76.9",
+    "metro-resolver": "0.76.9"
   },
   "expo": {
     "doctor": {

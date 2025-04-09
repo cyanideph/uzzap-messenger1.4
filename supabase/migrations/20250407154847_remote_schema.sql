@@ -260,8 +260,14 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
-ALTER TABLE ONLY "public"."chatrooms"
-    ADD CONSTRAINT "chatrooms_pkey" PRIMARY KEY ("id");
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chatrooms_pkey' AND contype = 'p' AND conrelid = 'public.chatrooms'::regclass) THEN
+        ALTER TABLE ONLY "public"."chatrooms"
+            ADD CONSTRAINT "chatrooms_pkey" PRIMARY KEY ("id");
+    END IF;
+END$$;
+COMMENT ON CONSTRAINT "chatrooms_pkey" ON "public"."chatrooms" IS E'@omit create,update,delete';
 
 
 

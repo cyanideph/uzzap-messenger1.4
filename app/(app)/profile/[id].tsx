@@ -22,10 +22,7 @@ interface UserProfile {
   location: string;
   avatar: string | null;
   joinDate: Date;
-  followerCount: number;
-  followingCount: number;
   isSelf: boolean;
-  isFollowing: boolean;
   status_message?: string;
   last_status_update?: string;
   relationship?: string;
@@ -120,13 +117,19 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Fetch user profile data with location in a single query
+      // First, fetch the profile data with follower/following counts
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(`
-          *,
-          user_relationships!user_relationships_related_user_id_fkey(relationship_type),
-          users!inner(location)
+          id,
+          username,
+          full_name,
+          bio,
+          avatar_url,
+          created_at,
+          status_message,
+          last_status_update,
+          user_relationships!user_relationships_related_user_id_fkey(relationship_type)
         `)
         .eq('id', profileId)
         .single();
@@ -137,8 +140,16 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Update location handling
-      const location = profileData.users?.location || 'Unknown';
+      // Then fetch the user's location separately
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('location')
+        .eq('id', profileId)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user location:', userError);
+      }
 
       // Create user profile object
       const userProfile: UserProfile = {
@@ -146,13 +157,10 @@ export default function ProfileScreen() {
         username: profileData.username,
         name: profileData.full_name || profileData.username,
         bio: profileData.bio || '',
-        location: location,
+        location: userData?.location || 'Unknown',
         avatar: profileData.avatar_url,
         joinDate: new Date(profileData.created_at),
-        followerCount: profileData.follower_count || 0,
-        followingCount: profileData.following_count || 0,
         isSelf: isSelfProfile,
-        isFollowing: profileData.is_following || false,
         status_message: profileData.status_message || '',
         last_status_update: profileData.last_status_update,
         relationship: profileData.user_relationships?.[0]?.relationship_type,
@@ -184,51 +192,6 @@ export default function ProfileScreen() {
     fetchUserProfile();
     fetchGalleryImages();
   }, [id, user?.id, isSelfProfile]);
-
-  const toggleFollow = async () => {
-    if (!profile || !user?.id) return;
-
-    try {
-      if (profile.isFollowing) {
-        // Unfollow user
-        const { error } = await supabase
-          .from('user_follows')
-          .delete()
-          .eq('follower_id', user.id)
-          .eq('following_id', profile.id);
-
-        if (error) {
-          console.error('Error unfollowing user:', error);
-          return;
-        }
-      } else {
-        // Follow user
-        const { error } = await supabase
-          .from('user_follows')
-          .insert({
-            follower_id: user.id,
-            following_id: profile.id,
-            created_at: new Date().toISOString(),
-          });
-
-        if (error) {
-          console.error('Error following user:', error);
-          return;
-        }
-      }
-
-      // Update local state
-      setProfile({
-        ...profile,
-        isFollowing: !profile.isFollowing,
-        followerCount: profile.isFollowing
-          ? profile.followerCount - 1
-          : profile.followerCount + 1,
-      });
-    } catch (error) {
-      console.error('Unexpected error in toggleFollow:', error);
-    }
-  };
 
   const saveProfile = async () => {
     if (!profile || !user?.id) return;
@@ -516,29 +479,7 @@ export default function ProfileScreen() {
               )}
             </View>
 
-            <View className="flex-row justify-around w-full mb-4">
-              <View className="items-center">
-                <Text className="text-lg font-semibold">{profile.followerCount}</Text>
-                <Text className="text-sm text-muted-foreground">Followers</Text>
-              </View>
-
-              <View className="items-center">
-                <Text className="text-lg font-semibold">{profile.followingCount}</Text>
-                <Text className="text-sm text-muted-foreground">Following</Text>
-              </View>
-            </View>
-
-            <View className="flex-row w-full space-x-2">
-              {!profile.isSelf && (
-                <Button
-                  variant={profile.isFollowing ? 'secondary' : 'default'}
-                  className="flex-1"
-                  onPress={toggleFollow}
-                >
-                  {profile.isFollowing ? 'Unfollow' : 'Follow'}
-                </Button>
-              )}
-
+            <View className="flex-row w-full">
               <Button
                 variant="outline"
                 className="flex-1"

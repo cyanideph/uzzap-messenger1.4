@@ -1,104 +1,86 @@
-import React, { useState } from 'react';
-import { View, Alert } from 'react-native';
+import React from 'react';
+import { View } from 'react-native';
+import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
-import { UserMinus, UserPlus, UserX } from 'lucide-react-native';
-import { addFriend, blockUser, removeRelationship } from '~/lib/supabase';
+import { supabase } from '~/lib/supabase';
+import { UserMinus, UserX } from 'lucide-react-native';
 
 interface RelationshipActionsProps {
   userId: string;
   targetId: string;
-  relationshipType?: string;  // Changed from relationship to relationshipType
+  relationshipType?: string;
   onRelationshipChange: () => void;
 }
 
-export function RelationshipActions({ 
-  userId, 
-  targetId, 
+export function RelationshipActions({
+  userId,
+  targetId,
   relationshipType,
-  onRelationshipChange 
+  onRelationshipChange,
 }: RelationshipActionsProps) {
-  const [loading, setLoading] = useState(false);
+  const blockUser = async () => {
+    try {
+      // First remove any existing relationship
+      await supabase
+        .from('user_relationships')
+        .delete()
+        .match({ user_id: userId, related_user_id: targetId });
 
-  const handleAddFriend = async () => {
-    setLoading(true);
-    const { error } = await addFriend(userId, targetId);
-    if (error) {
-      Alert.alert('Error', 'Failed to add friend');
-    } else {
+      // Then add blocked relationship
+      const { error } = await supabase
+        .from('user_relationships')
+        .insert({
+          user_id: userId,
+          related_user_id: targetId,
+          relationship_type: 'blocked'
+        });
+
+      if (error) {
+        console.error('Error blocking user:', error);
+        return;
+      }
+
       onRelationshipChange();
+    } catch (error) {
+      console.error('Unexpected error in blockUser:', error);
     }
-    setLoading(false);
   };
 
-  const handleBlock = async () => {
-    Alert.alert(
-      'Block User',
-      'Are you sure you want to block this user?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Block',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            const { error } = await blockUser(userId, targetId);
-            if (error) {
-              Alert.alert('Error', 'Failed to block user');
-            } else {
-              onRelationshipChange();
-            }
-            setLoading(false);
-          }
-        }
-      ]
+  const unblockUser = async () => {
+    try {
+      const { error } = await supabase
+        .from('user_relationships')
+        .delete()
+        .match({ user_id: userId, related_user_id: targetId });
+
+      if (error) {
+        console.error('Error unblocking user:', error);
+        return;
+      }
+
+      onRelationshipChange();
+    } catch (error) {
+      console.error('Unexpected error in unblockUser:', error);
+    }
+  };
+
+  if (relationshipType === 'blocked') {
+    return (
+      <View className="mt-4">
+        <Button variant="destructive" onPress={unblockUser}>
+          <UserMinus className="mr-2 h-4 w-4" />
+          <Text className="text-destructive-foreground">Unblock User</Text>
+        </Button>
+      </View>
     );
-  };
-
-  const handleRemoveRelationship = async () => {
-    setLoading(true);
-    const { error } = await removeRelationship(userId, targetId);
-    if (error) {
-      Alert.alert('Error', 'Failed to remove relationship');
-    } else {
-      onRelationshipChange();
-    }
-    setLoading(false);
-  };
+  }
 
   return (
-    <View className="flex-row space-x-2">
-      {!relationshipType && (
-        <Button 
-          variant="outline" 
-          onPress={handleAddFriend}
-          disabled={loading}
-        >
-          <UserPlus size={16} className="mr-1" />
-          Add Friend
-        </Button>
-      )}
-
-      {relationshipType === 'friend' && (
-        <Button 
-          variant="outline" 
-          onPress={handleRemoveRelationship}
-          disabled={loading}
-        >
-          <UserMinus size={16} className="mr-1" />
-          Remove Friend
-        </Button>
-      )}
-
-      {relationshipType !== 'blocked' && (
-        <Button 
-          variant="destructive" 
-          onPress={handleBlock}
-          disabled={loading}
-        >
-          <UserX size={16} className="mr-1" />
-          Block
-        </Button>
-      )}
+    <View className="mt-4">
+      <Button variant="destructive" onPress={blockUser}>
+        <UserX className="mr-2 h-4 w-4" />
+        <Text className="text-destructive-foreground">Block User</Text>
+      </Button>
     </View>
   );
 }

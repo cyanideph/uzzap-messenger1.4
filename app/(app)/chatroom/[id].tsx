@@ -1,23 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  ScrollView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   FlatList,
   Image,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text } from '~/components/ui/text';
-import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
-import { Send, MapPin, Users, Camera, Mic, Smile, Paperclip, Bot } from 'lucide-react-native';
+import { Send, MapPin, Users, Smile, Paperclip, Mic } from 'lucide-react-native';
 import { supabase } from '~/lib/supabase';
-import { sendMessageToBot, isBot, getBotCommands } from '~/lib/bot';
+import { ChatBubble } from '~/components/messages/ChatBubble';
 
 // Define types for Supabase data
 interface Profile {
@@ -37,17 +34,15 @@ interface MessageData {
 interface ChatMessage {
   id: string;
   user_id: string;
-  userId?: string; // For compatibility with rendering code
+  userId?: string;
   userName: string;
   userAvatar: string | null;
   content: string;
-  text?: string; // For compatibility with rendering code
+  text?: string;
   created_at: string;
-  timestamp?: Date; // For compatibility with rendering code
+  timestamp?: Date;
   isCurrentUser: boolean;
 }
-
-// Function to fetch messages from Supabase
 
 export default function ChatroomScreen() {
   const { id, provinceName, regionName } = useLocalSearchParams();
@@ -88,20 +83,23 @@ export default function ChatroomScreen() {
 
         // Map the data to our ChatMessage interface
         const formattedMessages = messagesData?.map(msg => {
-          // Access the first profile item if it's an array, otherwise use the object directly
           const profile = Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles;
           
+          // Add logging to check user IDs
+          console.log(`Message user_id: ${msg.user_id}, Current user ID: ${user?.id}, isCurrentUser: ${msg.user_id === user?.id}`);
           return {
             id: msg.id,
             user_id: msg.user_id,
-            userId: msg.user_id, // For compatibility with existing code
+            userId: msg.user_id,
             userName: profile?.username || 'Anonymous User',
             userAvatar: profile?.avatar_url,
             content: msg.content,
-            text: msg.content, // For compatibility with existing code
+            text: msg.content,
             created_at: msg.created_at,
-            timestamp: new Date(msg.created_at), // For compatibility with existing code
-            isCurrentUser: msg.user_id === user?.id
+            timestamp: new Date(msg.created_at),
+            isCurrentUser: msg.user_id === user?.id,
+            // Add logging to check user IDs
+            console.log(`Message user_id: ${msg.user_id}, Current user ID: ${user?.id}, isCurrentUser: ${msg.user_id === user?.id}`);
           };
         }) || [];
 
@@ -122,10 +120,9 @@ export default function ChatroomScreen() {
         table: 'messages',
         filter: `chatroom_id=eq.${id}`
       }, async (payload) => {
-        // When a new message is added, fetch the user info
         const { data: userData, error: userError } = await supabase
           .from('profiles')
-          .select('username, avatar_url, status_message, last_status_update')
+          .select('username, avatar_url')
           .eq('id', payload.new.user_id)
           .single();
 
@@ -157,44 +154,21 @@ export default function ChatroomScreen() {
     try {
       const messageContent = newMessage.trim();
       
-      // Check if this is a bot command
-      if (messageContent.startsWith('/')) {
-        // First insert the user's command as a message
-        await supabase
-          .from('messages')
-          .insert({
-            chatroom_id: id,
-            user_id: user.id,
-            content: messageContent
-          });
-        
-        // Call the bot with this command
-        const botResponse = await sendMessageToBot(messageContent, user.id, id as string);
-        
-        if (!botResponse) {
-          console.log('No response from bot or error occurred');
-        }
-        // Note: The bot response will be handled by the subscription
-      } else {
-        // Regular message, just insert it
-        const { error } = await supabase
-          .from('messages')
-          .insert({
-            chatroom_id: id,
-            user_id: user.id,
-            content: messageContent
-          });
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          chatroom_id: id,
+          user_id: user.id,
+          content: messageContent
+        });
 
-        if (error) {
-          console.error('Error sending message:', error);
-          return;
-        }
+      if (error) {
+        console.error('Error sending message:', error);
+        return;
       }
       
-      // Clear the input field
       setNewMessage('');
       
-      // Scroll to the bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -213,18 +187,6 @@ export default function ChatroomScreen() {
       return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     }
   };
-  
-  // Show bot commands when user taps the bot button
-  const showBotCommands = () => {
-    const commands = getBotCommands();
-    const commandsText = commands.map(cmd => `/${cmd.name} - ${cmd.description}`).join('\n');
-    
-    Alert.alert(
-      'UzZap Bot Commands',
-      commandsText,
-      [{ text: 'OK', style: 'default' }]
-    );
-  };
 
   return (
     <KeyboardAvoidingView
@@ -237,9 +199,6 @@ export default function ChatroomScreen() {
           title: provinceName as string || 'Chatroom',
           headerRight: () => (
             <View className="flex-row items-center">
-              <TouchableOpacity onPress={showBotCommands} className="mr-3">
-                <Bot size={20} className="text-primary" />
-              </TouchableOpacity>
               <Badge className="mr-2" variant="outline">
                 <Users size={14} className="mr-1" />
                 <Text className="text-xs">{onlineUsers}</Text>
@@ -250,7 +209,6 @@ export default function ChatroomScreen() {
       />
 
       <View className="flex-1 bg-background">
-        {/* Region info banner */}
         <View className="bg-primary/10 p-3 flex-row items-center justify-between">
           <View className="flex-row items-center">
             <MapPin size={16} className="text-primary mr-2" />
@@ -261,7 +219,6 @@ export default function ChatroomScreen() {
           </Badge>
         </View>
 
-        {/* Messages */}
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -272,59 +229,54 @@ export default function ChatroomScreen() {
             flatListRef.current?.scrollToEnd({ animated: false });
           }}
           renderItem={({ item }) => (
-            <View 
-              className={`mb-4 max-w-[80%] ${item.isCurrentUser ? 'self-end' : 'self-start'}`}
-              style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
+            <View
+              className={`mb-4 max-w-[80%] flex ${item.isCurrentUser ? 'self-end' : 'self-start'}`}
             >
-              {!item.isCurrentUser && (
-                <View className="flex-row items-center mb-1">
-                  <Text className="text-xs text-muted-foreground">{item.userName}</Text>
-                  {isBot(item.user_id) && (
-                    <Badge className="ml-1 py-0" variant="secondary">
-                      <Bot size={10} className="mr-1" />
-                      <Text className="text-[9px]">BOT</Text>
-                    </Badge>
+              <View className="flex-row items-end">
+                {!item.isCurrentUser && (
+                  <View className="mr-2 mb-2">
+                    {item.userAvatar ? (
+                      <Image
+                        source={{ uri: item.userAvatar }}
+                        className="w-6 h-6 rounded-full bg-muted"
+                      />
+                    ) : (
+                      <View className="w-6 h-6 rounded-full bg-primary/80 items-center justify-center">
+                        <Text className="text-xs font-medium text-primary-foreground">
+                          {item.userName?.substring(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View className="flex-1">
+                  {!item.isCurrentUser && (
+                    <Text className="text-xs text-muted-foreground mb-1">
+                      {item.userName}
+                    </Text>
                   )}
+                  
+                  <ChatBubble 
+                    message={item.text || item.content}
+                    isCurrentUser={item.isCurrentUser}
+                  />
+                  
+                  <Text 
+                    className="text-xs text-muted-foreground mt-1"
+                    style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
+                  >
+                    {formatTime(item.timestamp || new Date(item.created_at))}
+                  </Text>
                 </View>
-              )}
-              
-              <View 
-                className={`rounded-2xl p-3 ${
-                  item.isCurrentUser 
-                    ? 'bg-primary' 
-                    : isBot(item.user_id)
-                      ? 'bg-secondary border border-border'
-                      : 'bg-muted border border-border'
-                }`}
-              >
-                <Text 
-                  className={item.isCurrentUser 
-                    ? 'text-primary-foreground' 
-                    : isBot(item.user_id) 
-                      ? 'text-secondary-foreground' 
-                      : 'text-foreground'}
-                >
-                  {item.text}
-                </Text>
               </View>
-              
-              <Text 
-                className="text-xs text-muted-foreground mt-1"
-                style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
-              >
-                {formatTime(item.timestamp || new Date(item.created_at))}
-              </Text>
             </View>
           )}
         />
 
-        {/* Message input */}
         <View className="border-t border-border p-2 bg-background">
           <View className="flex-row items-center bg-muted rounded-full p-1">
             <View className="flex-row space-x-1 p-1">
-              <TouchableOpacity className="p-2" onPress={showBotCommands}>
-                <Bot size={22} className="text-primary" />
-              </TouchableOpacity>
               <TouchableOpacity className="p-2">
                 <Smile size={22} className="text-muted-foreground" />
               </TouchableOpacity>
