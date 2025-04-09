@@ -176,11 +176,11 @@
 
   /* Progress Styles */
   .progress {
-    @apply relative h-2 w-full overflow-hidden rounded-full bg-primary/20;
+    @apply h-2 w-full overflow-hidden rounded-full bg-primary-100;
   }
   
-  .progress-indicator {
-    @apply h-full w-full flex-1 bg-primary transition-all;
+  .progress-fill {
+    @apply h-full w-full flex-1 bg-primary-500 transition-all;
   }
 
   /* Skeleton Styles */

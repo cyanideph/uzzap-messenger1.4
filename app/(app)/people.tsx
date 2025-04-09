@@ -277,7 +277,7 @@ export default function PeopleScreen() {
               variant="ghost"
               size="sm"
               className="p-2"
-              onPress={() => router.push(`/chat/${item.id}`)}
+              onPress={() => router.push(`/(app)/chatroom/${item.id}`)}
             >
               <MessageSquare size={20} className="text-primary" />
             </Button>

@@ -139,7 +139,7 @@ export default function SettingsScreen() {
               variant="outline"
               size="sm"
               className="mt-2"
-              onPress={() => router.push('/profile')}
+              onPress={() => router.push('/(app)/profile/index')}
             >
               <Text>Edit Profile</Text>
             </Button>
@@ -264,13 +264,13 @@ export default function SettingsScreen() {
           icon: User,
           title: 'Profile',
           subtitle: 'Manage your profile information',
-          onPress: () => router.push('/profile'),
+          onPress: () => router.push('/(app)/profile/index'),
         })}
         {renderSettingsItem({
           icon: Shield,
           title: 'Privacy',
           subtitle: 'Manage your privacy settings',
-          onPress: () => router.push('/privacy'),
+          onPress: () => router.push('/(app)/help'),
         })}
       </View>
 
@@ -280,7 +280,7 @@ export default function SettingsScreen() {
           icon: HelpCircle,
           title: 'Help Center',
           subtitle: 'Get help and support',
-          onPress: () => router.push('/help'),
+          onPress: () => router.push('/(app)/help'),
         })}
         {renderSettingsItem({
           icon: Globe,

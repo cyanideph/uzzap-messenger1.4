@@ -179,7 +179,7 @@ export default function MessagesScreen() {
           variant="ghost"
           size="sm"
           className="p-2"
-          onPress={() => router.push('/new-message')}
+          onPress={() => router.push('/(app)/people')}
         >
           <Plus className="text-foreground" size={24} />
         </Button>

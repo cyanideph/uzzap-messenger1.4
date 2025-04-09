@@ -147,10 +147,10 @@ export default function HomeScreen() {
           <Text className="text-muted-foreground">Welcome back!</Text>
         </View>
         <View className="flex-row space-x-2">
-          <Button variant="ghost" size="sm" onPress={() => router.push('/notifications')}>
+          <Button variant="ghost" size="sm" onPress={() => router.push('/(app)/messages')}>
             <Bell className="text-foreground" size={24} />
           </Button>
-          <Button variant="ghost" size="sm" onPress={() => router.push('/search')}>
+          <Button variant="ghost" size="sm" onPress={() => router.push('/(app)/people')}>
             <Search className="text-foreground" size={24} />
           </Button>
         </View>
@@ -249,14 +249,14 @@ export default function HomeScreen() {
             <Button
               variant="ghost"
               size="sm"
-              onPress={() => router.push('/notifications')}
+              onPress={() => router.push('/(app)/messages')}
             >
               <Bell size={20} />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onPress={() => router.push('/search')}
+              onPress={() => router.push('/(app)/people')}
             >
               <Search size={20} />
             </Button>
