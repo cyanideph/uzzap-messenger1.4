@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, Text } from 'react-native';
 import { Link, router } from 'expo-router';
-import { styled } from 'nativewind/styled';
+import { cssInterop } from 'react-native-css-interop';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card, CardHeader, CardContent, CardFooter } from '~/components/ui/card';
-import { Toast } from '~/components/ui/toast';
+import { useToast } from '~/components/ui/toast';
 import { Loading } from '~/components/ui/loading';
 
-const StyledView = styled(View);
-const StyledImage = styled(Image);
-const StyledKeyboardAvoidingView = styled(KeyboardAvoidingView);
-const StyledText = styled(Text);
+cssInterop(View, { className: 'style' });
+cssInterop(Image, { className: 'style' });
+cssInterop(KeyboardAvoidingView, { className: 'style' });
+cssInterop(Text, { className: 'style' });
+
+const StyledView = View;
+const StyledImage = Image;
+const StyledKeyboardAvoidingView = KeyboardAvoidingView;
+const StyledText = Text;
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
@@ -20,18 +25,18 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showToast, setShowToast] = useState(false);
+  const { showToast } = useToast();
 
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
       setError('Please fill in all fields');
-      setShowToast(true);
+      showToast('Please fill in all fields', 'error');
       return;
     }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
-      setShowToast(true);
+      showToast('Passwords do not match', 'error');
       return;
     }
 
@@ -39,10 +44,10 @@ export default function SignupScreen() {
     try {
       // TODO: Implement your signup logic here
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
-      router.replace('/(app)');
+      router.replace('/(app)/home');
     } catch (err) {
       setError('Failed to create account');
-      setShowToast(true);
+      showToast('Failed to create account', 'error');
     } finally {
       setLoading(false);
     }
@@ -129,14 +134,6 @@ export default function SignupScreen() {
           </StyledText>
         </StyledView>
       </StyledView>
-
-      {showToast && (
-        <Toast
-          message={error}
-          type="error"
-          onClose={() => setShowToast(false)}
-        />
-      )}
 
       {loading && <Loading fullScreen />}
     </StyledKeyboardAvoidingView>

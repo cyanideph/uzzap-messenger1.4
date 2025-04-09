@@ -1,29 +1,35 @@
 import React, { useState } from 'react';
 import { View, Image, KeyboardAvoidingView, Platform, Text } from 'react-native';
 import { Link, router } from 'expo-router';
-import { styled } from 'nativewind/styled';
+import { cssInterop } from 'react-native-css-interop';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Card, CardHeader, CardContent, CardFooter } from '~/components/ui/card';
-import { Toast } from '~/components/ui/toast';
+import { useToast } from '~/components/ui/toast';
 import { Loading } from '~/components/ui/loading';
+import { StyleSheet } from 'react-native-css-interop';
 
-const StyledView = styled(View);
-const StyledImage = styled(Image);
-const StyledKeyboardAvoidingView = styled(KeyboardAvoidingView);
-const StyledText = styled(Text);
+cssInterop(View, { className: 'style' });
+cssInterop(Image, { className: 'style' });
+cssInterop(KeyboardAvoidingView, { className: 'style' });
+cssInterop(Text, { className: 'style' });
+
+const StyledView = View;
+const StyledImage = Image;
+const StyledKeyboardAvoidingView = KeyboardAvoidingView;
+const StyledText = Text;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showToast, setShowToast] = useState(false);
+  const { showToast } = useToast();
 
   const handleLogin = async () => {
     if (!email || !password) {
       setError('Please fill in all fields');
-      setShowToast(true);
+      showToast('Please fill in all fields', 'error');
       return;
     }
 
@@ -31,10 +37,10 @@ export default function LoginScreen() {
     try {
       // TODO: Implement your login logic here
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
-      router.replace('/(app)');
+      router.push('/');
     } catch (err) {
       setError('Invalid email or password');
-      setShowToast(true);
+      showToast('Invalid email or password', 'error');
     } finally {
       setLoading(false);
     }
@@ -82,8 +88,8 @@ export default function LoginScreen() {
               secureTextEntry
             />
 
-            <Link href="/forgot-password" className="text-right">
-              <StyledText className="text-primary-600 text-sm">
+            <Link href="/" asChild>
+              <StyledText className="text-primary-600 text-sm text-right">
                 Forgot Password?
               </StyledText>
             </Link>
@@ -111,14 +117,6 @@ export default function LoginScreen() {
           </StyledText>
         </StyledView>
       </StyledView>
-
-      {showToast && (
-        <Toast
-          message={error}
-          type="error"
-          onClose={() => setShowToast(false)}
-        />
-      )}
 
       {loading && <Loading fullScreen />}
     </StyledKeyboardAvoidingView>
