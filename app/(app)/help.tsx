@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { Stack } from 'expo-router';
 import { Text } from '~/components/ui/text';
-import { Card } from '~/components/ui/card';
+import { Card, CardContent } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 import { Separator } from '~/components/ui/separator';
-import { Search, ChevronDown, ChevronUp, MessageSquare, User, Users, Shield, Mail } from 'lucide-react-native';
+import { Search, ChevronDown, ChevronUp, MessageSquare, User, Users, Shield, Mail, HelpCircle } from 'lucide-react-native';
 import { cn } from '~/lib/utils';
 import { useColorScheme } from '~/lib/useColorScheme';
 
@@ -20,6 +20,7 @@ export default function HelpCenterScreen() {
   const { isDarkColorScheme } = useColorScheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFAQs, setExpandedFAQs] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const faqData: FAQItem[] = [
     {
@@ -72,34 +73,44 @@ export default function HelpCenterScreen() {
     }
   };
   
-  const filteredFAQs = faqData.filter(faq => 
-    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    faq.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    faq.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFAQs = faqData.filter(faq => {
+    const matchesSearch = 
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      faq.category.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!selectedCategory) return matchesSearch;
+    return matchesSearch && faq.category === selectedCategory;
+  });
   
   const categories = [
-    { name: 'Chatrooms', icon: <MessageSquare size={20} className="text-primary" /> },
-    { name: 'Messages', icon: <Mail size={20} className="text-primary" /> },
-    { name: 'Profile', icon: <User size={20} className="text-primary" /> },
-    { name: 'Community', icon: <Users size={20} className="text-primary" /> },
-    { name: 'Security', icon: <Shield size={20} className="text-primary" /> },
+    { name: 'Chatrooms', icon: <MessageSquare size={20} className="text-primary" />, value: 'chatrooms' },
+    { name: 'Messages', icon: <Mail size={20} className="text-primary" />, value: 'messages' },
+    { name: 'Profile', icon: <User size={20} className="text-primary" />, value: 'profile' },
+    { name: 'Community', icon: <Users size={20} className="text-primary" />, value: 'community' },
+    { name: 'Security', icon: <Shield size={20} className="text-primary" />, value: 'security' },
   ];
 
   return (
-    <>
+    <View className="flex-1 bg-background">
       <Stack.Screen
         options={{
           title: 'Help Center',
         }}
       />
 
-      <ScrollView className="flex-1 bg-background">
+      <ScrollView className="flex-1">
         <View className="p-4">
-          <Text className="text-2xl font-bold mb-2">How can we help?</Text>
-          <Text className="text-muted-foreground mb-4">
-            Find answers to common questions about using UzZap
-          </Text>
+          {/* Header */}
+          <View className="items-center mb-6">
+            <View className="w-16 h-16 bg-primary/10 rounded-full items-center justify-center mb-3">
+              <HelpCircle size={32} className="text-primary" />
+            </View>
+            <Text className="text-2xl font-bold text-center">How can we help?</Text>
+            <Text className="text-muted-foreground text-center">
+              Find answers to common questions about using UzZap
+            </Text>
+          </View>
           
           {/* Search */}
           <View className="flex-row items-center bg-muted rounded-lg px-3 mb-6">
@@ -115,74 +126,92 @@ export default function HelpCenterScreen() {
           {/* Categories */}
           <Text className="text-lg font-semibold mb-3">Browse by Category</Text>
           <View className="flex-row flex-wrap mb-6">
-            {categories.map((category, index) => (
+            {categories.map((category) => (
               <TouchableOpacity 
-                key={index}
-                className="bg-muted rounded-lg p-3 m-1 items-center flex-1 min-w-[30%]"
-                onPress={() => setSearchQuery(category.name.toLowerCase())}
+                key={category.value}
+                className={cn(
+                  "bg-muted rounded-lg p-3 m-1 items-center flex-1 min-w-[30%]",
+                  selectedCategory === category.value && "bg-primary/10"
+                )}
+                onPress={() => setSelectedCategory(
+                  selectedCategory === category.value ? null : category.value
+                )}
               >
                 <View className="mb-2">{category.icon}</View>
-                <Text className={cn("text-center", isDarkColorScheme ? "text-white" : "")}>{category.name}</Text>
+                <Text className={cn(
+                  "text-center",
+                  selectedCategory === category.value && "text-primary font-medium"
+                )}>
+                  {category.name}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
           
           {/* FAQs */}
           <Text className="text-lg font-semibold mb-3">Frequently Asked Questions</Text>
-          <Card className="p-4 mb-6 border border-border">
-            {filteredFAQs.length > 0 ? (
-              <View className="space-y-2">
-                {filteredFAQs.map((faq, index) => (
-                  <View key={index}>
-                    {index > 0 && <Separator className="my-2" />}
-                    <TouchableOpacity
-                      className="py-2"
-                      onPress={() => toggleFAQ(faq.question)}
-                    >
-                      <View className="flex-row justify-between items-center">
-                        <Text className="font-semibold flex-1 pr-2">{faq.question}</Text>
-                        {expandedFAQs.includes(faq.question) ? (
-                          <ChevronUp size={18} className="text-muted-foreground" />
-                        ) : (
-                          <ChevronDown size={18} className="text-muted-foreground" />
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              {filteredFAQs.length > 0 ? (
+                <View className="space-y-2">
+                  {filteredFAQs.map((faq, index) => (
+                    <View key={index}>
+                      {index > 0 && <Separator className="my-2" />}
+                      <TouchableOpacity
+                        className="py-2"
+                        onPress={() => toggleFAQ(faq.question)}
+                      >
+                        <View className="flex-row justify-between items-center">
+                          <Text className="font-semibold flex-1 pr-2">{faq.question}</Text>
+                          {expandedFAQs.includes(faq.question) ? (
+                            <ChevronUp size={18} className="text-muted-foreground" />
+                          ) : (
+                            <ChevronDown size={18} className="text-muted-foreground" />
+                          )}
+                        </View>
+                        
+                        {expandedFAQs.includes(faq.question) && (
+                          <Text className="text-muted-foreground mt-2">{faq.answer}</Text>
                         )}
-                      </View>
-                      
-                      {expandedFAQs.includes(faq.question) && (
-                        <Text className="text-muted-foreground mt-2">{faq.answer}</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View className="py-4 items-center">
-                <Text className="text-muted-foreground text-center">
-                  No results found for "{searchQuery}"
-                </Text>
-                <Button
-                  variant="outline"
-                  className="mt-2"
-                  onPress={() => setSearchQuery('')}
-                >
-                  Clear Search
-                </Button>
-              </View>
-            )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View className="py-4 items-center">
+                  <Text className="text-muted-foreground text-center">
+                    No results found for "{searchQuery}"
+                  </Text>
+                  <Button
+                    variant="outline"
+                    className="mt-2"
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSelectedCategory(null);
+                    }}
+                  >
+                    Clear Search
+                  </Button>
+                </View>
+              )}
+            </CardContent>
           </Card>
           
           {/* Contact Support */}
           <Text className="text-lg font-semibold mb-3">Need More Help?</Text>
-          <Card className="p-4 mb-6 border border-border">
-            <Text className="text-foreground mb-3">
-              <Text>Can't find what you're looking for? Contact our support team for personalized assistance.</Text>
-            </Text>
-            <Button>
-              <Text>Contact Support</Text>
-            </Button>
+          <Card>
+            <CardContent className="p-4">
+              <Text className="text-foreground mb-3">
+                Can't find what you're looking for? Contact our support team for personalized assistance.
+              </Text>
+              <Button>
+                <Mail size={18} className="mr-2" />
+                <Text>Contact Support</Text>
+              </Button>
+            </CardContent>
           </Card>
         </View>
       </ScrollView>
-    </>
+    </View>
   );
 }

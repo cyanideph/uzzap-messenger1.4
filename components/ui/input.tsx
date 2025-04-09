@@ -1,24 +1,77 @@
-import * as React from 'react';
-import { TextInput, type TextInputProps } from 'react-native';
-import { cn } from '~/lib/utils';
+import React from 'react';
+import { TextInput, View, Text } from 'react-native';
+import { styled } from 'nativewind';
 
-const Input = React.forwardRef<React.ElementRef<typeof TextInput>, TextInputProps>(
-  ({ className, placeholderClassName, ...props }, ref) => {
-    return (
-      <TextInput
-        ref={ref}
-        className={cn(
-          'web:flex h-10 native:h-12 web:w-full rounded-md border border-input bg-background px-3 web:py-2 text-base lg:text-sm native:text-lg native:leading-[1.25] text-foreground placeholder:text-muted-foreground web:ring-offset-background file:border-0 file:bg-transparent file:font-medium web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2',
-          props.editable === false && 'opacity-50 web:cursor-not-allowed',
-          className
-        )}
-        placeholderClassName={cn('text-muted-foreground', placeholderClassName)}
-        {...props}
+const StyledTextInput = styled(TextInput);
+const StyledView = styled(View);
+const StyledText = styled(Text);
+
+interface InputProps {
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  onChangeText?: (text: string) => void;
+  error?: string;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  className?: string;
+  multiline?: boolean;
+  numberOfLines?: number;
+}
+
+export function Input({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  error,
+  secureTextEntry = false,
+  keyboardType = 'default',
+  autoCapitalize = 'none',
+  className = '',
+  multiline = false,
+  numberOfLines = 1,
+}: InputProps) {
+  return (
+    <StyledView className="w-full">
+      {label && (
+        <StyledText className="mb-1 text-sm font-medium text-gray-700">
+          {label}
+        </StyledText>
+      )}
+      <StyledTextInput
+        className={`
+          w-full
+          px-4
+          py-2
+          rounded-lg
+          border
+          ${error ? 'border-red-500' : 'border-gray-300'}
+          bg-white
+          text-gray-900
+          placeholder-gray-400
+          focus:border-primary-500
+          focus:ring-1
+          focus:ring-primary-500
+          ${multiline ? 'text-align-vertical-top' : ''}
+          ${className}
+        `}
+        placeholder={placeholder}
+        value={value}
+        onChangeText={onChangeText}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
+        placeholderTextColor="#9CA3AF"
       />
-    );
-  }
-);
-
-Input.displayName = 'Input';
-
-export { Input };
+      {error && (
+        <StyledText className="mt-1 text-sm text-red-500">
+          {error}
+        </StyledText>
+      )}
+    </StyledView>
+  );
+}

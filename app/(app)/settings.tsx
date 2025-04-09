@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Switch, Alert, ActivityIndicator, TouchableOpacity, Image } from 'react-native';
+import { View, ScrollView, Switch, Alert, ActivityIndicator, TouchableOpacity, Image, Animated } from 'react-native';
 import { Text } from '~/components/ui/text';
-import { Card } from '~/components/ui/card';
+import { Card, CardContent } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
 import { Separator } from '~/components/ui/separator';
 import { useAuth } from '~/lib/auth-context';
@@ -21,8 +21,12 @@ import {
   Mail,
   Globe,
   Camera,
+  Settings,
 } from 'lucide-react-native';
 import { supabase } from '~/lib/supabase';
+import { Avatar } from '~/components/ui/avatar';
+import { cn } from '~/lib/utils';
+import { LucideIcon } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -111,192 +115,188 @@ export default function SettingsScreen() {
     }
   };
 
-  return (
-    <ScrollView className="flex-1 bg-background">
-      <View className="p-4">
-        <Text className="text-2xl font-bold mb-6">Settings</Text>
-        
-        {/* Account Section */}
-        <Card className="p-4 mb-6 border border-border">
-          <View className="flex-row items-center mb-4">
-            <TouchableOpacity 
-              onPress={uploadAvatar}
-              className="relative mr-3"
-            >
-              {avatarUrl ? (
-                <Image
-                  source={{ uri: avatarUrl }}
-                  className="w-16 h-16 rounded-full"
-                />
-              ) : (
-                <View className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
-                  <Text className="text-primary-foreground text-xl font-bold">
-                    {user?.email?.substring(0, 1).toUpperCase() || 'U'}
-                  </Text>
-                </View>
-              )}
-              <View className="absolute right-0 bottom-0 bg-primary rounded-full p-1">
-                <Camera size={12} color="#fff" />
+  const renderProfileSection = () => (
+    <Card className="mx-4 mb-4">
+      <CardContent className="p-4">
+        <View className="flex-row items-center space-x-4">
+          <TouchableOpacity onPress={uploadAvatar} disabled={isLoading}>
+            <View className="relative">
+              <Avatar
+                src={avatarUrl || undefined}
+                alt={user?.email?.split('@')[0] || 'User'}
+                size="lg"
+                fallback={(user?.email?.[0] || 'U').toUpperCase()}
+              />
+              <View className="absolute bottom-0 right-0 bg-primary p-2 rounded-full">
+                <Camera className="text-primary-foreground" size={16} />
               </View>
-            </TouchableOpacity>
-            <View className="flex-1">
-              <Text className="font-semibold">
-                {user?.email?.split('@')[0] || 'User'}
-              </Text>
-              <Text className="text-sm text-muted-foreground">{user?.email}</Text>
             </View>
+          </TouchableOpacity>
+          <View className="flex-1">
+            <Text className="text-xl font-bold">{user?.email?.split('@')[0]}</Text>
+            <Text className="text-muted-foreground">{user?.email}</Text>
             <Button
               variant="outline"
               size="sm"
-              className="h-8"
-              onPress={() => router.push({
-                pathname: "/profile/[id]",
-                params: { id: 'me' }
-              })}
+              className="mt-2"
+              onPress={() => router.push('/profile')}
             >
-              <Text className="text-xs">Edit</Text>
+              <Text>Edit Profile</Text>
             </Button>
           </View>
-          
-          <Separator className="mb-4" />
-          
-          <View className="space-y-3">
-            <Button
-              variant="ghost"
-              className="justify-start h-12 pl-1"
-              onPress={() => router.push({
-                pathname: "/profile/[id]",
-                params: { id: 'me' }
-              })}
-            >
-              <User size={18} className="text-primary mr-3" />
-              <Text>Account Details</Text>
-              <ChevronRight size={18} className="text-muted-foreground ml-auto" />
-            </Button>
-            
-            <Button
-              variant="ghost"
-              className="justify-start h-12 pl-1"
-              onPress={() => Alert.alert('Privacy', 'Privacy settings coming soon!')}
-            >
-              <Shield size={18} className="text-primary mr-3" />
-              <Text>Privacy & Security</Text>
-              <ChevronRight size={18} className="text-muted-foreground ml-auto" />
-            </Button>
-          </View>
-        </Card>
-        
-        {/* Preferences Section */}
-        <Text className="text-lg font-semibold mb-3">Preferences</Text>
-        <Card className="p-4 mb-6 border border-border">
-          <View className="space-y-4">
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                {isDarkColorScheme ? (
-                  <Moon size={18} className="text-primary mr-3" />
-                ) : (
-                  <Sun size={18} className="text-primary mr-3" />
-                )}
-                <Text>Dark Mode</Text>
-              </View>
-              <Switch
-                value={isDarkColorScheme}
-                onValueChange={toggleColorScheme}
-                trackColor={{ false: '#e5e7eb', true: '#6366F1' }}
-                thumbColor="#ffffff"
-              />
-            </View>
-            
-            <Separator />
-            
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                <Bell size={18} className="text-primary mr-3" />
-                <Text>Push Notifications</Text>
-              </View>
-              <Switch
-                value={pushNotifications}
-                onValueChange={setPushNotifications}
-                trackColor={{ false: '#e5e7eb', true: '#6366F1' }}
-                thumbColor="#ffffff"
-              />
-            </View>
-            
-            <Separator />
-            
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center">
-                <Mail size={18} className="text-primary mr-3" />
-                <Text>Email Notifications</Text>
-              </View>
-              <Switch
-                value={emailNotifications}
-                onValueChange={setEmailNotifications}
-                trackColor={{ false: '#e5e7eb', true: '#6366F1' }}
-                thumbColor="#ffffff"
-              />
-            </View>
-            
-            <Separator />
-            
-            <Button
-              variant="ghost"
-              className="justify-start h-12 pl-1"
-              onPress={() => Alert.alert('Language', 'Language settings coming soon!')}
-            >
-              <Globe size={18} className="text-primary mr-3" />
-              <Text>Language</Text>
-              <Text className="text-muted-foreground ml-auto mr-1">English</Text>
-              <ChevronRight size={18} className="text-muted-foreground" />
-            </Button>
-          </View>
-        </Card>
-        
-        {/* Support Section */}
-        <Text className="text-lg font-semibold mb-3">Support</Text>
-        <Card className="p-4 mb-6 border border-border">
-          <View className="space-y-3">
-            <Button
-              variant="ghost"
-              className="justify-start h-12 pl-1"
-              onPress={() => router.push('/help')}
-            >
-              <HelpCircle size={18} className="text-primary mr-3" />
-              <Text>Help Center</Text>
-              <ChevronRight size={18} className="text-muted-foreground ml-auto" />
-            </Button>
-            
-            <Separator />
-            
-            <Button
-              variant="ghost"
-              className="justify-start h-12 pl-1"
-              onPress={() => router.push('/about')}
-            >
-              <Text className="mr-3">ℹ️</Text>
-              <Text>About UzZap</Text>
-              <Text className="text-muted-foreground ml-auto mr-1">v1.0.0</Text>
-              <ChevronRight size={18} className="text-muted-foreground" />
-            </Button>
-          </View>
-        </Card>
-        
-        {/* Sign Out Button */}
-        <Button
-          variant="destructive"
-          className="mt-2"
-          onPress={promptSignOut}
-          disabled={isLoading}
+        </View>
+      </CardContent>
+    </Card>
+  );
+
+  const renderSettingsItem = ({
+    icon: Icon,
+    title,
+    subtitle,
+    onPress,
+    rightComponent,
+  }: {
+    icon: LucideIcon;
+    title: string;
+    subtitle?: string;
+    onPress?: () => void;
+    rightComponent?: React.ReactNode;
+  }) => {
+    const scaleAnim = new Animated.Value(1);
+
+    const handlePressIn = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const handlePressOut = () => {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    return (
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <TouchableOpacity
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={0.7}
         >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <LogOut size={18} className="mr-2" />
-              <Text className="text-white">Sign Out</Text>
-            </>
-          )}
-        </Button>
+          <Card className="mx-4 mb-2">
+            <CardContent className="p-4">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center space-x-3">
+                  <View className="bg-primary/10 p-2 rounded-full">
+                    <Icon size={20} className="text-primary" />
+                  </View>
+                  <View>
+                    <Text className="font-medium">{title}</Text>
+                    {subtitle && (
+                      <Text className="text-sm text-muted-foreground">
+                        {subtitle}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                {rightComponent || <ChevronRight size={20} className="text-muted-foreground" />}
+              </View>
+            </CardContent>
+          </Card>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  return (
+    <ScrollView className="flex-1 bg-background">
+      {renderProfileSection()}
+
+      <View className="mb-4">
+        <Text className="text-lg font-semibold px-4 mb-2">Preferences</Text>
+        {renderSettingsItem({
+          icon: isDarkColorScheme ? Moon : Sun,
+          title: 'Dark Mode',
+          subtitle: 'Switch between light and dark theme',
+          rightComponent: (
+            <Switch
+              value={isDarkColorScheme}
+              onValueChange={toggleColorScheme}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={isDarkColorScheme ? '#f5dd4b' : '#f4f3f4'}
+            />
+          ),
+        })}
+        {renderSettingsItem({
+          icon: Bell,
+          title: 'Push Notifications',
+          subtitle: 'Receive push notifications',
+          rightComponent: (
+            <Switch
+              value={pushNotifications}
+              onValueChange={setPushNotifications}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={pushNotifications ? '#f5dd4b' : '#f4f3f4'}
+            />
+          ),
+        })}
+        {renderSettingsItem({
+          icon: Mail,
+          title: 'Email Notifications',
+          subtitle: 'Receive email notifications',
+          rightComponent: (
+            <Switch
+              value={emailNotifications}
+              onValueChange={setEmailNotifications}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={emailNotifications ? '#f5dd4b' : '#f4f3f4'}
+            />
+          ),
+        })}
+      </View>
+
+      <View className="mb-4">
+        <Text className="text-lg font-semibold px-4 mb-2">Account</Text>
+        {renderSettingsItem({
+          icon: User,
+          title: 'Profile',
+          subtitle: 'Manage your profile information',
+          onPress: () => router.push('/profile'),
+        })}
+        {renderSettingsItem({
+          icon: Shield,
+          title: 'Privacy',
+          subtitle: 'Manage your privacy settings',
+          onPress: () => router.push('/privacy'),
+        })}
+      </View>
+
+      <View className="mb-4">
+        <Text className="text-lg font-semibold px-4 mb-2">Support</Text>
+        {renderSettingsItem({
+          icon: HelpCircle,
+          title: 'Help Center',
+          subtitle: 'Get help and support',
+          onPress: () => router.push('/help'),
+        })}
+        {renderSettingsItem({
+          icon: Globe,
+          title: 'About',
+          subtitle: 'Learn more about the app',
+          onPress: () => router.push('/about'),
+        })}
+      </View>
+
+      <View className="mb-8">
+        {renderSettingsItem({
+          icon: LogOut,
+          title: 'Sign Out',
+          subtitle: 'Log out of your account',
+          onPress: promptSignOut,
+        })}
       </View>
     </ScrollView>
   );

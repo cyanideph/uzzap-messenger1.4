@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Image, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, ScrollView, RefreshControl, TouchableOpacity, FlatList, ActivityIndicator, Animated } from 'react-native';
+import { Stack } from 'expo-router';
 import { Text } from '~/components/ui/text';
-import { Card } from '~/components/ui/card';
+import { Card, CardContent } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
-import { Search, User, MapPin, MessageSquare, UserPlus } from 'lucide-react-native';
+import { Avatar } from '~/components/ui/avatar';
+import { Search, User, MapPin, MessageSquare, UserPlus, UserMinus, AtSign } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '~/lib/auth-context';
 import { supabase } from '~/lib/supabase';
+import { cn } from '~/lib/utils';
 
 // Interface for user profile data
 interface PersonProfile {
@@ -199,205 +202,162 @@ export default function PeopleScreen() {
     return matchesQuery;
   });
 
-  const startDirectMessage = (userId: string, username: string) => {
-    // In a real app, navigate to a direct message chat
-    router.push({
-      pathname: `/direct-message/${userId}`,
-      params: { username }
-    } as any);
-  };
+  const renderTabBar = () => (
+    <View className="flex-row justify-around mb-4">
+      {(['all', 'following', 'suggested'] as TabType[]).map((tab) => (
+        <TouchableOpacity
+          key={tab}
+          className={cn(
+            "flex-1 items-center py-2 border-b-2",
+            activeTab === tab
+              ? "border-primary"
+              : "border-transparent"
+          )}
+          onPress={() => setActiveTab(tab)}
+        >
+          <Text
+            className={cn(
+              "font-medium",
+              activeTab === tab
+                ? "text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderPersonCard = ({ item }: { item: PersonProfile }) => (
+    <Card className="mb-3">
+      <CardContent className="p-4">
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            onPress={() => router.push(`/profile/${item.id}`)}
+            className="mr-3"
+          >
+            <View className="relative">
+              <Avatar
+                src={item.avatar || undefined}
+                alt={item.name}
+                size="lg"
+                fallback={item.name[0].toUpperCase()}
+              />
+              {item.isOnline && (
+                <View className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+              )}
+            </View>
+          </TouchableOpacity>
+          
+          <View className="flex-1">
+            <View className="flex-row items-center">
+              <Text className="font-semibold mr-2">{item.name}</Text>
+              {item.mutualChatrooms > 0 && (
+                <Badge variant="secondary">
+                  {item.mutualChatrooms} mutual
+                </Badge>
+              )}
+            </View>
+            <View className="flex-row items-center">
+              <AtSign className="text-muted-foreground mr-1" size={14} />
+              <Text className="text-muted-foreground text-sm">{item.username}</Text>
+            </View>
+            {item.location && (
+              <View className="flex-row items-center mt-1">
+                <MapPin className="text-muted-foreground mr-1" size={14} />
+                <Text className="text-muted-foreground text-sm">{item.location}</Text>
+              </View>
+            )}
+          </View>
+          
+          <View className="flex-row space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2"
+              onPress={() => router.push(`/chat/${item.id}`)}
+            >
+              <MessageSquare size={20} className="text-primary" />
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="p-2"
+              onPress={() => toggleFollow(item.id)}
+            >
+              {following.includes(item.id) ? (
+                <UserMinus size={20} className="text-primary-foreground" />
+              ) : (
+                <UserPlus size={20} className="text-primary-foreground" />
+              )}
+            </Button>
+          </View>
+        </View>
+        
+        {item.status_message && (
+          <View className="mt-3 bg-muted/50 rounded-lg p-2">
+            <Text className="text-sm italic">{item.status_message}</Text>
+          </View>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <View className="flex-1 bg-background">
+      <Stack.Screen
+        options={{
+          title: 'People',
+        }}
+      />
+      
       <View className="p-4">
-        <View className="mb-4">
-          <Text className="text-2xl font-bold mb-2">People</Text>
-          <Text className="text-muted-foreground">
-            Connect with other users across the Philippines
-          </Text>
-        </View>
-
+        {/* Search Bar */}
         <View className="flex-row items-center bg-muted rounded-lg px-3 mb-4">
           <Search size={18} className="text-muted-foreground" />
           <Input
-            placeholder="Search by name, username, or location..."
+            placeholder="Search people..."
             className="flex-1 h-12 border-0 bg-transparent"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
-
-        <View className="flex-row mb-4">
-          <TouchableOpacity 
-            className={`flex-1 p-2 rounded-lg mr-2 ${activeTab === 'all' ? 'bg-primary' : 'bg-muted'}`}
-            onPress={() => setActiveTab('all')}
-          >
-            <Text 
-              className={activeTab === 'all' 
-                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
-                : "text-center font-medium text-foreground dark:text-foreground"
-              }
-            >
-              All
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            className={`flex-1 p-2 rounded-lg mr-2 ${activeTab === 'following' ? 'bg-primary' : 'bg-muted'}`}
-            onPress={() => setActiveTab('following')}
-          >
-            <Text 
-              className={activeTab === 'following'
-                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
-                : "text-center font-medium text-foreground dark:text-foreground"
-              }
-            >
-              Following
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            className={`flex-1 p-2 rounded-lg ${activeTab === 'suggested' ? 'bg-primary' : 'bg-muted'}`}
-            onPress={() => setActiveTab('suggested')}
-          >
-            <Text 
-              className={activeTab === 'suggested'
-                ? "text-center font-medium text-primary-foreground dark:text-primary-foreground"
-                : "text-center font-medium text-foreground dark:text-foreground"
-              }
-            >
-              Suggested
-            </Text>
-          </TouchableOpacity>
-        </View>
+        
+        {/* Tab Bar */}
+        {renderTabBar()}
       </View>
-
-      {loading && !refreshing ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text className="mt-4 text-muted-foreground">Loading people...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredPeople}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-          ItemSeparatorComponent={() => <View className="h-3" />}
-          ListEmptyComponent={() => (
-          <Card className="p-6 items-center">
-            <User size={40} className="text-muted-foreground mb-2" />
-            <Text className="text-center text-muted-foreground">
-              {searchQuery 
-                ? `No users found matching "${searchQuery}"` 
-                : activeTab === 'following' 
-                  ? "You're not following anyone yet" 
-                  : "No users found"}
-            </Text>
-            {activeTab === 'following' && (
-              <Button
-                className="mt-4"
-                onPress={() => setActiveTab('suggested')}
-              >
-                <Text className="font-medium text-primary-foreground">Discover People</Text>
-              </Button>
+      
+      {/* People List */}
+      <FlatList
+        data={filteredPeople}
+        renderItem={renderPersonCard}
+        keyExtractor={(item) => item.id}
+        contentContainerClassName="p-4"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+          />
+        }
+        ListEmptyComponent={
+          <View className="items-center justify-center py-8">
+            {loading ? (
+              <ActivityIndicator size="large" />
+            ) : (
+              <>
+                <Text className="text-lg font-semibold mb-2">No people found</Text>
+                <Text className="text-muted-foreground text-center">
+                  {searchQuery
+                    ? 'Try adjusting your search'
+                    : 'No people to show at the moment'}
+                </Text>
+              </>
             )}
-          </Card>
-        )}
-        renderItem={({ item }) => (
-          <Card className="p-4 border border-border">
-            <View className="flex-row">
-              <View className="mr-3">
-                {item.avatar ? (
-                  <Image
-                    source={{ uri: item.avatar }}
-                    className="w-12 h-12 rounded-full"
-                  />
-                ) : (
-                  <View className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Text className="text-primary text-lg font-semibold">
-                      {item.name.substring(0, 1)}
-                    </Text>
-                  </View>
-                )}
-                {item.isOnline && (
-                  <View className="w-3 h-3 rounded-full bg-green-500 absolute right-0 bottom-0 border-2 border-background" />
-                )}
-              </View>
-              
-              <View className="flex-1">
-                <View className="flex-row items-center">
-                  <Text className="font-semibold">{item.name}</Text>
-                  {item.isOnline && (
-                    <Badge variant="outline" className="ml-2 h-5 px-1.5">
-                      <Text className="text-xs">Online</Text>
-                    </Badge>
-                  )}
-                </View>
-                
-                <Text className="text-muted-foreground text-sm">@{item.username}</Text>
-                
-                <View className="flex-row items-center mt-1">
-                  <MapPin size={12} className="text-muted-foreground mr-1" />
-                  <Text className="text-xs text-muted-foreground">{item.location}</Text>
-                </View>
-                
-                {item.mutualChatrooms > 0 && (
-                  <View className="flex-row items-center mt-1">
-                    <MessageSquare size={12} className="text-muted-foreground mr-1" />
-                    <Text className="text-xs text-muted-foreground">
-                      {item.mutualChatrooms} mutual {item.mutualChatrooms === 1 ? 'chatroom' : 'chatrooms'}
-                    </Text>
-                  </View>
-                )}
-
-                {item.status_message && (
-                  <Text 
-                    className="text-sm text-muted-foreground mt-1"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {item.status_message}
-                  </Text>
-                )}
-              </View>
-              
-              <View className="flex-col space-y-2">
-                <Button 
-                  variant={following.includes(item.id) ? "outline" : "default"}
-                  size="sm"
-                  className="h-8"
-                  onPress={() => toggleFollow(item.id)}
-                >
-                  <UserPlus size={14} className="mr-1" />
-                  <Text 
-                    className={
-                      following.includes(item.id)
-                        ? "text-xs font-medium text-foreground dark:text-foreground"
-                        : "text-xs font-medium text-primary-foreground dark:text-primary-foreground"
-                    }
-                  >
-                    {following.includes(item.id) ? 'Following' : 'Follow'}
-                  </Text>
-                </Button>
-                
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  className="h-8"
-                  onPress={() => startDirectMessage(item.id, item.username)}
-                >
-                  <MessageSquare size={14} className="mr-1" />
-                  <Text className="text-xs font-medium text-foreground dark:text-foreground">Message</Text>
-                </Button>
-              </View>
-            </View>
-          </Card>
-        )}
+          </View>
+        }
       />
-      )}
     </View>
   );
 }

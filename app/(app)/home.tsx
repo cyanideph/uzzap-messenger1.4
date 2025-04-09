@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, RefreshControl, Image } from 'react-native';
+import { View, FlatList, RefreshControl, Image, ScrollView, Animated, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text } from '~/components/ui/text';
-import { Card } from '~/components/ui/card';
+import { Card, CardHeader, CardContent, CardFooter } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { useAuth } from '~/lib/auth-context';
 import { supabase } from '~/lib/supabase';
-import { MessageSquare, Users, TrendingUp, Zap } from 'lucide-react-native';
+import { MessageSquare, Users, TrendingUp, Zap, Bell, Search, Settings, Heart, MessageCircle } from 'lucide-react-native';
 import { ActivityFeed } from '~/components/activity/ActivityFeed';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { Activity } from '~/lib/types';
+import { Avatar } from '~/components/ui/avatar';
+import { Loading } from '~/components/ui/loading';
+import { cn } from '~/lib/utils';
+import { AuthUser } from '../../lib/supabase';
+import { formatDistanceToNow } from 'date-fns';
+import { User } from '@supabase/supabase-js';
+
+type ExtendedUser = User & {
+  avatar_url?: string;
+  username?: string;
+};
 
 type RecentChat = {
   id: string;
@@ -20,8 +31,21 @@ type RecentChat = {
   unread_count: number;
 };
 
+interface Post {
+  id: string;
+  content: string;
+  created_at: string;
+  author: {
+    id: string;
+    username: string;
+    avatar_url?: string;
+  };
+  likes_count: number;
+  comments_count: number;
+}
+
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: ExtendedUser | null };
   const [greeting, setGreeting] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,6 +53,8 @@ export default function HomeScreen() {
   const [activeUsers, setActiveUsers] = useState(0);
   const [activeRegions, setActiveRegions] = useState(0);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const scrollY = new Animated.Value(0);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -104,129 +130,179 @@ export default function HomeScreen() {
     setActivities(simulatedActivities);
   };
 
-  const onRefresh = () => {
+  const onRefresh = React.useCallback(() => {
     setRefreshing(true);
     loadHomeData();
-  };
+    loadActivities();
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
 
   const renderHeader = () => (
-    <View className="p-4">
-      <View className="flex-row justify-between items-center mb-6">
+    <View className="px-4 py-6 bg-background">
+      <View className="flex-row justify-between items-center mb-4">
         <View>
-          <Text className="text-2xl font-bold">{greeting},</Text>
-          <Text className="text-lg text-muted-foreground">
-            {user?.username || user?.email?.split('@')[0] || 'Friend'}
-          </Text>
+          <Text className="text-2xl font-bold text-foreground">{greeting}</Text>
+          <Text className="text-muted-foreground">Welcome back!</Text>
         </View>
-        {user?.user_metadata?.avatar_url ? (
-          <Image
-            source={{ uri: user.user_metadata.avatar_url }}
-            className="w-12 h-12 rounded-full"
-          />
-        ) : (
-          <View className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-            <Text className="text-primary-foreground text-lg font-semibold">
-              {user?.email?.substring(0, 1).toUpperCase() || 'U'}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View className="flex-row space-x-4 mb-6">
-        <Card className="flex-1 p-4 border border-border">
-          <View className="flex-row items-center space-x-2">
-            <View className="bg-primary/10 p-2 rounded-full">
-              <Users size={18} color="#6366F1" />
-            </View>
-            <Text className="text-sm text-muted-foreground">Active Users</Text>
-          </View>
-          <Text className="text-2xl font-bold mt-2">{activeUsers}</Text>
-        </Card>
-        
-        <Card className="flex-1 p-4 border border-border">
-          <View className="flex-row items-center space-x-2">
-            <View className="bg-green-100 p-2 rounded-full">
-              <TrendingUp size={18} color="#10B981" />
-            </View>
-            <Text className="text-sm text-muted-foreground">Active Regions</Text>
-          </View>
-          <Text className="text-2xl font-bold mt-2">{activeRegions}</Text>
-        </Card>
-      </View>
-
-      <View className="mb-4">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-xl font-semibold">Recent Chats</Text>
-          <Button 
-            variant="ghost" 
-            onPress={() => router.push('/chatrooms')}
-            className="h-8 px-2"
-          >
-            <Text className="text-primary font-medium text-sm">View All</Text>
+        <View className="flex-row space-x-2">
+          <Button variant="ghost" size="sm" onPress={() => router.push('/notifications')}>
+            <Bell className="text-foreground" size={24} />
+          </Button>
+          <Button variant="ghost" size="sm" onPress={() => router.push('/search')}>
+            <Search className="text-foreground" size={24} />
           </Button>
         </View>
-
-        {recentChats.length === 0 && !loading ? (
-          <Card className="p-6 items-center">
-            <MessageSquare size={40} className="text-muted-foreground mb-2" />
-            <Text className="text-center text-muted-foreground">
-              No recent chats yet. Join a chatroom to start connecting!
-            </Text>
-            <Button
-              className="mt-4"
-              onPress={() => router.push('/chatrooms')}
-            >
-              <Text>Browse Chatrooms</Text>
-            </Button>
-          </Card>
-        ) : (
-          <View />
-        )}
       </View>
 
-      <Text className="text-xl font-semibold mb-4">Activity Feed</Text>
-    </View>
-  );
-
-  const renderFooter = () => (
-    <View className="p-4">
-      <View className="mb-6">
-        <Text className="text-xl font-semibold mb-4">Featured Topics</Text>
-        <Card className="overflow-hidden border border-border">
-          <View className="bg-primary/10 p-5">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-primary p-2 rounded-full mr-3">
-                <Zap size={20} color="#fff" />
+      <View className="flex-row justify-between mb-6">
+        <Card className="flex-1 mr-2">
+          <CardContent className="p-4">
+            <View className="flex-row items-center">
+              <View className="bg-primary/10 p-2 rounded-full mr-3">
+                <Users className="text-primary" size={20} />
               </View>
-              <Text className="font-semibold">Philippine Festivals</Text>
+              <View>
+                <Text className="text-lg font-semibold">{activeUsers}</Text>
+                <Text className="text-sm text-muted-foreground">Active Users</Text>
+              </View>
             </View>
-            <Text className="mb-4">
-              Discover and discuss upcoming festivals and cultural events across the Philippines!
-            </Text>
-            <Button className="self-start">
-              <Text>Explore Topics</Text>
-            </Button>
-          </View>
+          </CardContent>
+        </Card>
+        <Card className="flex-1 ml-2">
+          <CardContent className="p-4">
+            <View className="flex-row items-center">
+              <View className="bg-primary/10 p-2 rounded-full mr-3">
+                <TrendingUp className="text-primary" size={20} />
+              </View>
+              <View>
+                <Text className="text-lg font-semibold">{activeRegions}</Text>
+                <Text className="text-sm text-muted-foreground">Active Regions</Text>
+              </View>
+            </View>
+          </CardContent>
         </Card>
       </View>
     </View>
   );
 
-  return (
-    <FlatList
-      data={activities}
-      renderItem={({ item }) => (
-        <View className="px-4">
-          <ActivityFeed activities={[item]} />
+  const renderPost = ({ item }: { item: Post }) => (
+    <Card className="mx-4 mb-4 overflow-hidden">
+      <CardHeader className="p-4">
+        <View className="flex-row items-center">
+          <Avatar
+            src={item.author.avatar_url}
+            className="mr-3 w-8 h-8"
+          />
+          <View>
+            <Text className="font-semibold">{item.author.username}</Text>
+            <Text className="text-sm text-muted-foreground">{formatDistanceToNow(new Date(item.created_at))} ago</Text>
+          </View>
         </View>
-      )}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={renderHeader}
-      ListFooterComponent={renderFooter}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-      contentContainerStyle={{ flexGrow: 1, backgroundColor: 'background' }}
-    />
+      </CardHeader>
+      <CardContent className="p-4">
+        <Text className="text-base mb-4">{item.content}</Text>
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row space-x-4">
+            <Button variant="ghost" size="sm" className="flex-row items-center">
+              <Heart className="w-4 h-4 mr-1" />
+              <Text>{item.likes_count}</Text>
+            </Button>
+            <Button variant="ghost" size="sm" className="flex-row items-center">
+              <MessageCircle className="w-4 h-4 mr-1" />
+              <Text>{item.comments_count}</Text>
+            </Button>
+          </View>
+        </View>
+      </CardContent>
+    </Card>
+  );
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  return (
+    <View className="flex-1 bg-background">
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <View className="p-4">
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <Avatar
+              src={user?.avatar_url}
+              className="w-8 h-8 mr-2"
+            />
+            <View>
+              <Text className="text-lg font-semibold">Welcome back,</Text>
+              <Text className="text-muted-foreground">
+                {user?.username || 'User'}
+              </Text>
+            </View>
+          </View>
+          <View className="flex-row space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/notifications')}
+            >
+              <Bell size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/search')}
+            >
+              <Search size={20} />
+            </Button>
+          </View>
+        </View>
+
+        <View className="mt-6">
+          {posts.map((post) => (
+            <View key={post.id} className="bg-card rounded-lg p-4 mb-4">
+              <View className="flex-row items-center mb-3">
+                <Avatar
+                  src={post.author.avatar_url}
+                  className="w-8 h-8 mr-2"
+                />
+                <View>
+                  <Text className="font-semibold">{post.author.username}</Text>
+                  <Text className="text-sm text-muted-foreground">
+                    {formatDistanceToNow(new Date(post.created_at))} ago
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-base mb-3">{post.content}</Text>
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-row items-center"
+                  >
+                    <Heart className="w-4 h-4 mr-1" />
+                    <Text>{post.likes_count}</Text>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-row items-center ml-2"
+                  >
+                    <MessageCircle className="w-4 h-4 mr-1" />
+                    <Text>{post.comments_count}</Text>
+                  </Button>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
   );
 }

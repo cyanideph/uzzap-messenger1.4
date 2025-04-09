@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, FlatList, Platform, Pressable } from 'react-native';
+import { View, ScrollView, RefreshControl, FlatList, Platform, Pressable, Animated } from 'react-native';
 import { Text } from '~/components/ui/text';
-import { Card } from '~/components/ui/card';
+import { Card, CardContent } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
-import { Search } from '~/lib/icons/Search';
-import { MapPin } from '~/lib/icons/MapPin';
-import { Users } from '~/lib/icons/Users';
-import { ChevronRight } from '~/lib/icons/ChevronRight';
-import { MessageSquare } from '~/lib/icons/MessageSquare';
+import { Search, MapPin, Users, ChevronRight, MessageSquare, Filter } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { supabase } from '~/lib/supabase';
-// import * as Slot from '@rn-primitives/slot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FullWindowOverlay } from 'react-native-screens';
 import { PortalHost } from '@rn-primitives/portal';
+import { cn } from '~/lib/utils';
 
 interface Province {
   id: string;
@@ -42,6 +38,7 @@ export default function ChatroomsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeUsers, setActiveUsers] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const insets = useSafeAreaInsets();
 
   const fetchRegionsAndProvinces = async () => {
@@ -115,10 +112,10 @@ export default function ChatroomsScreen() {
     fetchRegionsAndProvinces();
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = React.useCallback(() => {
     setRefreshing(true);
     fetchRegionsAndProvinces();
-  };
+  }, []);
 
   const toggleRegion = React.useCallback((regionId: string) => {
     console.log('toggleRegion called with regionId:', regionId);
@@ -144,132 +141,124 @@ export default function ChatroomsScreen() {
     });
   };
 
-  return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <ScrollView 
-        className="flex-1"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View className="p-4" style={{ paddingBottom: insets.bottom }}>
-          <Text className="text-2xl font-bold mb-2">Chatrooms</Text>
-          <Text className="text-muted-foreground mb-4">
-            Join conversations in Philippines regions and provinces
-          </Text>
-          
-          {/* Search */}
-          <View className="flex-row items-center bg-muted rounded-lg px-3 mb-6">
-            <Search size={18} className="text-muted-foreground" />
-            <Input
-              placeholder="Search regions or provinces..."
-              className="flex-1 h-12 border-0 bg-transparent"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+  const renderSearchBar = () => (
+    <View className="px-4 py-4">
+      <View className="flex-row items-center space-x-2">
+        <View className="flex-1 relative">
+          <View className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
+            <Search className="text-muted-foreground" size={20} />
           </View>
-
-          {/* Loading State */}
-          {loading ? (
-            <View className="items-center py-8">
-              <Text className="text-muted-foreground">Loading regions...</Text>
-            </View>
-          ) : filteredRegions.length === 0 ? (
-            <View className="items-center py-8">
-              <Text className="text-muted-foreground">
-                No regions or provinces found matching "{searchQuery}"
-              </Text>
-            </View>
-          ) : (
-            // Regions List
-            <View className="space-y-4">
-              {filteredRegions.map(region => {
-                return (
-                  <RegionItem
-                    key={region.id}
-                    region={region}
-                    expandedRegion={expandedRegion}
-                    toggleRegion={toggleRegion}
-                    navigateToChatroom={navigateToChatroom}
-                    activeUsers={activeUsers}
-                  />
-                );
-              })}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      <WindowOverlay>
-        <PortalHost name={CHATROOMS_PORTAL_HOST_NAME} />
-      </WindowOverlay>
-    </View>
-  );
-}
-
-function RegionItem({ region, expandedRegion, toggleRegion, navigateToChatroom, activeUsers }: {
-  region: Region;
-  expandedRegion: string | null;
-  toggleRegion: (regionId: string) => void;
-  navigateToChatroom: (provinceId: string, provinceName: string, regionName: string) => void;
-  activeUsers: Record<string, number>;
-}) {
-  const memoizedRegion = React.useMemo(() => region, [region]);
-
-  return (
-    <Card key={memoizedRegion.id} className="border border-border overflow-hidden">
-      {/* Region Header */}
-      <Pressable
-        className="flex-row items-center justify-between p-4"
-        onPress={() => {
-          console.log('Region header pressed for regionId:', memoizedRegion.id);
-          toggleRegion(memoizedRegion.id);
-        }}
-      >
-        <View className="flex-row items-center flex-1 justify-between">
-          <View className="flex-row items-center flex-1">
-            <MapPin size={18} className="text-primary mr-2" />
-            <View className="flex-1">
-              <Text className="font-semibold">{memoizedRegion.name}</Text>
-              <Text className="text-sm text-muted-foreground">
-                {memoizedRegion.provinces.length} {memoizedRegion.provinces.length === 1 ? 'Province' : 'Provinces'}
-              </Text>
-            </View>
-          </View>
-          <ChevronRight
-            size={18}
-            className={`text-muted-foreground ${
-              String(expandedRegion) === String(memoizedRegion.id) ? 'rotate-90' : 'rotate-0'
-            }`}
+          <Input
+            placeholder="Search chatrooms..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="bg-background pl-10"
           />
         </View>
-      </Pressable>
+        <Button
+          variant="outline"
+          size="sm"
+          className="p-2"
+          onPress={() => setShowFilters(!showFilters)}
+        >
+          <Filter className="text-foreground" size={20} />
+        </Button>
+      </View>
+    </View>
+  );
 
-      {/* Provinces List */}
-      {String(expandedRegion) === String(memoizedRegion.id) && (
-        <View className="border-t border-border">
-          {memoizedRegion.provinces.map(province => (
-            <Pressable
-              key={province.id}
-              className="flex-row items-center justify-between p-4 border-b border-border last:border-b-0"
-              onPress={() => navigateToChatroom(province.id, province.name, memoizedRegion.name)}
-            >
-              <View className="flex-1 flex-row items-center justify-between">
-                <View className="flex-1">
-                  <Text>{province.name}</Text>
-                  <View className="flex-row items-center mt-1">
-                    <Users size={14} className="text-muted-foreground mr-1" />
-                    <Text className="text-sm text-muted-foreground">
-                      {activeUsers[province.id] || 0} active
-                    </Text>
-                  </View>
-                </View>
-                <MessageSquare size={18} className="text-primary" />
-              </View>
-            </Pressable>
-          ))}
+  const renderRegionItem = ({ item: region }: { item: Region }) => {
+    const isExpanded = expandedRegion === region.id;
+    const rotateAnim = new Animated.Value(isExpanded ? 1 : 0);
+    
+    Animated.timing(rotateAnim, {
+      toValue: isExpanded ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+
+    const rotate = rotateAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0deg', '90deg'],
+    });
+
+    return (
+      <Card className="mx-4 mb-4 overflow-hidden">
+        <Pressable
+          onPress={() => setExpandedRegion(isExpanded ? null : region.id)}
+          className="p-4"
+        >
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center space-x-3">
+              <MapPin className="text-primary" size={20} />
+              <Text className="text-lg font-semibold">{region.name}</Text>
+            </View>
+            <Animated.View style={{ transform: [{ rotate }] }}>
+              <ChevronRight className="text-muted-foreground" size={20} />
+            </Animated.View>
+          </View>
+        </Pressable>
+
+        {isExpanded && (
+          <View className="px-4 pb-4">
+            {region.provinces.map((province) => (
+              <Pressable
+                key={province.id}
+                onPress={() => navigateToChatroom(province.id, province.name, region.name)}
+                className="mb-2 last:mb-0"
+              >
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3">
+                    <View className="flex-row items-center justify-between">
+                      <View className="flex-row items-center space-x-3">
+                        <MessageSquare className="text-primary" size={18} />
+                        <View>
+                          <Text className="font-medium">{province.name}</Text>
+                          <Text className="text-sm text-muted-foreground">
+                            {activeUsers[province.id] || 0} active users
+                          </Text>
+                        </View>
+                      </View>
+                      <Badge variant="secondary">
+                        {activeUsers[province.id] || 0}
+                      </Badge>
+                    </View>
+                  </CardContent>
+                </Card>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </Card>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <Text>Loading chatrooms...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-background">
+      <PortalHost name={CHATROOMS_PORTAL_HOST_NAME} />
+      <WindowOverlay>
+        <View style={{ paddingTop: insets.top }} className="flex-1">
+          {renderSearchBar()}
+          <FlatList
+            data={regions}
+            renderItem={renderRegionItem}
+            keyExtractor={(item) => item.id}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+            contentContainerStyle={{ paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+          />
         </View>
-      )}
-    </Card>
+      </WindowOverlay>
+    </View>
   );
 }

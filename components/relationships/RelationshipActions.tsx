@@ -67,7 +67,7 @@ export function RelationshipActions({
   if (relationshipType === 'blocked') {
     return (
       <View className="mt-4">
-        <Button variant="destructive" onPress={unblockUser}>
+        <Button variant="secondary" onPress={unblockUser}>
           <UserMinus className="mr-2 h-4 w-4" />
           <Text className="text-destructive-foreground">Unblock User</Text>
         </Button>
@@ -77,7 +77,7 @@ export function RelationshipActions({
 
   return (
     <View className="mt-4">
-      <Button variant="destructive" onPress={blockUser}>
+      <Button variant="secondary" onPress={blockUser}>
         <UserX className="mr-2 h-4 w-4" />
         <Text className="text-destructive-foreground">Block User</Text>
       </Button>

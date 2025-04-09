@@ -6,7 +6,10 @@ import { User } from '@supabase/supabase-js';
 import { Alert } from 'react-native';
 
 // Define the AuthUser type that extends the Supabase User type
-export type AuthUser = User & { username: string | null };
+export type AuthUser = User & { 
+  username: string | null;
+  avatar_url?: string;
+};
 
 type AuthContextType = {
   user: AuthUser | null;

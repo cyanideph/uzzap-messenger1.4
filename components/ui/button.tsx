@@ -1,98 +1,95 @@
-import { cva, type VariantProps } from 'class-variance-authority';
-import * as React from 'react';
-import { Pressable, Text } from 'react-native';
-import { TextClassContext } from '~/components/ui/text';
-import { cn } from '~/lib/utils';
+import React from 'react';
+import { Pressable, Text, ActivityIndicator, View } from 'react-native';
+import { styled } from 'nativewind';
 
-const buttonVariants = cva(
-  'group flex items-center justify-center rounded-md web:ring-offset-background web:transition-colors web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2 web:focus-visible:outline-2 web:focus-visible:outline-primary',
-  {
-    variants: {
-      variant: {
-        default: 'bg-primary web:hover:opacity-90 active:opacity-90',
-        destructive: 'bg-destructive web:hover:opacity-90 active:opacity-90',
-        outline:
-          'border border-input bg-background web:hover:bg-primary web:hover:text-primary-foreground active:bg-accent',
-        secondary: 'bg-secondary web:hover:opacity-80 active:opacity-80',
-        ghost: 'web:hover:bg-accent web:hover:text-accent-foreground active:bg-accent',
-        link: 'web:underline-offset-4 web:hover:underline web:focus:underline ',
-      },
-      size: {
-        default: 'h-10 px-4 py-2 native:h-12 native:px-5 native:py-3',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8 native:h-14',
-        icon: 'h-10 w-10',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
-  }
-);
+const StyledPressable = styled(Pressable);
+const StyledText = styled(Text);
+const StyledView = styled(View);
 
-const buttonTextVariants = cva(
-  'web:whitespace-nowrap text-sm native:text-base font-medium web:transition-colors text-center',
-  {
-    variants: {
-      variant: {
-        default: 'text-primary-foreground dark:text-primary-foreground',
-        destructive: 'text-destructive-foreground dark:text-destructive-foreground',
-        outline: 'text-foreground dark:text-foreground group-active:text-accent-foreground',
-        secondary: 'text-secondary-foreground dark:text-secondary-foreground',
-        ghost: 'text-foreground dark:text-foreground group-active:text-accent-foreground',
-        link: 'text-primary dark:text-primary group-active:underline',
-      },
-      size: {
-        default: '',
-        sm: '',
-        lg: 'native:text-lg',
-        icon: '',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
-  }
-);
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  onPress?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+}
 
-type ButtonProps = React.ComponentPropsWithoutRef<typeof Pressable> &
-  VariantProps<typeof buttonVariants>;
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  children,
+  onPress,
+  disabled = false,
+  loading = false,
+  className = '',
+}: ButtonProps) {
+  const baseStyles = 'rounded-lg items-center justify-center';
+  
+  const variantStyles = {
+    primary: 'bg-primary-600 active:bg-primary-700',
+    secondary: 'bg-secondary-600 active:bg-secondary-700',
+    outline: 'border-2 border-primary-600 active:bg-primary-50',
+    ghost: 'active:bg-primary-50',
+  };
 
-const Button = React.forwardRef<React.ElementRef<typeof Pressable>, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
-    return (
-      <TextClassContext.Provider
-        value={cn(
-          props.disabled && 'web:pointer-events-none',
-          buttonTextVariants({ variant, size })
-        )}
-      >
-        <Pressable
-          className={cn(
-            props.disabled && 'opacity-50 web:pointer-events-none',
-            buttonVariants({ variant, size, className }),
-            'flex-row items-center justify-center' // Enhanced centering with flex-row
-          )}
-          ref={ref}
-          role='button'
-          {...props}
-        />
-      </TextClassContext.Provider>
-    );
-  }
-);
-Button.displayName = 'Button';
+  const sizeStyles = {
+    sm: 'px-3 py-1.5',
+    md: 'px-4 py-2',
+    lg: 'px-6 py-3',
+  };
 
-// Create a custom button text component to enforce proper styling
-export const ButtonText = React.forwardRef<
-  React.ElementRef<typeof Text>,
-  React.ComponentPropsWithoutRef<typeof Text>
->(({ className, ...props }, ref) => {
-  return <Text ref={ref} className={cn('text-center', className)} {...props} />;
-});
-ButtonText.displayName = 'ButtonText';
+  const textStyles = {
+    primary: 'text-white',
+    secondary: 'text-white',
+    outline: 'text-primary-600',
+    ghost: 'text-primary-600',
+  };
 
-export { Button, buttonTextVariants, buttonVariants };
-export type { ButtonProps };
+  const textSizeStyles = {
+    sm: 'text-sm',
+    md: 'text-base',
+    lg: 'text-lg',
+  };
+
+  return (
+    <StyledPressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      className={`
+        ${baseStyles}
+        ${variantStyles[variant]}
+        ${sizeStyles[size]}
+        ${disabled ? 'opacity-50' : ''}
+        ${className}
+      `}
+    >
+      {loading ? (
+        <StyledView className="flex-row items-center">
+          <ActivityIndicator size="small" color={variant === 'primary' || variant === 'secondary' ? 'white' : '#0ea5e9'} />
+          <StyledText
+            className={`
+              ml-2
+              ${textStyles[variant]}
+              ${textSizeStyles[size]}
+              font-medium
+            `}
+          >
+            Loading...
+          </StyledText>
+        </StyledView>
+      ) : (
+        <StyledText
+          className={`
+            ${textStyles[variant]}
+            ${textSizeStyles[size]}
+            font-medium
+          `}
+        >
+          {children}
+        </StyledText>
+      )}
+    </StyledPressable>
+  );
+}

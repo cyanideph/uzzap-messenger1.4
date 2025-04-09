@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator, Animated } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Text } from '~/components/ui/text';
 import { Button } from '~/components/ui/button';
-import { Card } from '~/components/ui/card';
+import { Card, CardContent } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
 import { useColorScheme } from '~/lib/useColorScheme';
-import { ArrowLeft, User, MapPin, Calendar, MessageSquare, Edit2, Camera, AtSign } from 'lucide-react-native';
+import { ArrowLeft, User, MapPin, Calendar, MessageSquare, Edit2, Camera, AtSign, MoreVertical } from 'lucide-react-native';
 import { supabase, uploadAvatar, getGalleryImages } from '~/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { GalleryView } from '~/components/gallery/GalleryView';
 import { StatusUpdate } from '~/components/status/StatusUpdate';
 import { RelationshipActions } from '~/components/relationships/RelationshipActions';
+import { Avatar } from '~/components/ui/avatar';
+import { cn } from '~/lib/utils';
 
 interface UserProfile {
   id: string;
@@ -40,6 +42,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
+  const scrollY = new Animated.Value(0);
 
   // Determine if this is the current user's profile
   const isSelfProfile = id === user?.id || id === 'me';
@@ -265,268 +268,186 @@ export default function ProfileScreen() {
     }
   };
 
-  const formatJoinDate = (date: Date) => {
+  const formatJoinDate = (date: Date | undefined) => {
+    if (!date) return 'Unknown';
     return date.toLocaleDateString('en-US', {
-      month: 'long',
       year: 'numeric',
+      month: 'long',
     });
   };
 
-  if (!profile || loading) {
+  const renderHeader = () => (
+    <View className="relative">
+      <View className="h-48 bg-primary/20" />
+      <View className="absolute -bottom-16 left-4">
+        <TouchableOpacity onPress={pickImage} disabled={uploading}>
+          <View className="relative">
+            <Avatar
+              src={profile?.avatar || undefined}
+              alt={profile?.name || 'User'}
+              size="lg"
+              fallback={(profile?.name?.[0] || '?').toUpperCase()}
+              className="w-32 h-32 border-4 border-background"
+            />
+            {isSelfProfile && (
+              <View className="absolute bottom-0 right-0 bg-primary p-2 rounded-full">
+                <Camera className="text-primary-foreground" size={16} />
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
+      {isSelfProfile && (
+        <View className="absolute top-4 right-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2"
+            onPress={() => setIsEditing(!isEditing)}
+          >
+            <Edit2 className="text-foreground" size={24} />
+          </Button>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderProfileInfo = () => (
+    <View className="px-4">
+      <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-row items-center space-x-3">
+          <Avatar
+            src={profile?.avatar || undefined}
+            alt={profile?.name || 'User'}
+            size="lg"
+            fallback={(profile?.name?.[0] || '?').toUpperCase()}
+          />
+          <View>
+            <Text className="text-xl font-bold">{profile?.name}</Text>
+            <View className="flex-row items-center space-x-1">
+              <AtSign size={14} className="text-muted-foreground" />
+              <Text className="text-muted-foreground">@{profile?.username}</Text>
+            </View>
+          </View>
+        </View>
+        {isSelfProfile ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="p-2"
+            onPress={() => setIsEditing(!isEditing)}
+          >
+            <Edit2 size={20} className="text-primary" />
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="p-2"
+            onPress={() => router.push(`/direct-message/${profile?.id}`)}
+          >
+            <MessageSquare size={20} className="text-primary" />
+          </Button>
+        )}
+      </View>
+
+      {profile?.bio && (
+        <Text className="text-base mb-4">{profile.bio}</Text>
+      )}
+
+      <View className="flex-row items-center space-x-4 mb-4">
+        {profile?.location && (
+          <View className="flex-row items-center">
+            <MapPin className="text-muted-foreground mr-1" size={16} />
+            <Text className="text-muted-foreground">{profile.location}</Text>
+          </View>
+        )}
+        <View className="flex-row items-center">
+          <Calendar className="text-muted-foreground mr-1" size={16} />
+          <Text className="text-muted-foreground">
+            Joined {formatJoinDate(profile?.joinDate)}
+          </Text>
+        </View>
+      </View>
+
+      {profile?.status_message && (
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <Text className="text-base">{profile.status_message}</Text>
+            {profile.last_status_update && (
+              <Text className="text-sm text-muted-foreground mt-1">
+                Updated {profile.last_status_update}
+              </Text>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </View>
+  );
+
+  const renderGallery = () => (
+    <View className="mt-6">
+      <View className="flex-row items-center justify-between px-4 mb-4">
+        <Text className="text-lg font-semibold">Gallery</Text>
+        {isSelfProfile && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="p-2"
+            onPress={() => router.push('/gallery')}
+          >
+            <Camera size={20} className="text-primary" />
+          </Button>
+        )}
+      </View>
+      <GalleryView
+        userId={profile?.id || ''}
+        isOwner={isSelfProfile}
+        images={galleryImages}
+        onImageAdded={() => fetchGalleryImages()}
+        onImageDeleted={() => fetchGalleryImages()}
+      />
+    </View>
+  );
+
+  if (loading) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text className="mt-4">Loading profile...</Text>
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size="large" />
       </View>
     );
   }
 
   return (
-    <>
+    <View className="flex-1 bg-background">
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: isEditing ? 'Edit Profile' : profile.name,
+          headerTransparent: true,
           headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => {
-                if (isEditing) {
-                  // If editing, ask for confirmation before going back
-                  Alert.alert(
-                    'Discard Changes',
-                    'Are you sure you want to discard your changes?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Discard',
-                        onPress: () => {
-                          setIsEditing(false);
-                          // Reset edited profile
-                          setEditedProfile({
-                            name: profile.name,
-                            username: profile.username,
-                            bio: profile.bio,
-                            location: profile.location,
-                          });
-                        },
-                      },
-                    ]
-                  );
-                } else {
-                  router.back();
-                }
-              }}
-              className="mr-2"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2"
+              onPress={() => router.back()}
             >
-              <ArrowLeft size={24} color={isDarkColorScheme ? '#fff' : '#000'} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            profile.isSelf && !isEditing ? (
-              <TouchableOpacity onPress={() => setIsEditing(true)}>
-                <Edit2 size={22} color={isDarkColorScheme ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            ) : null
+              <ArrowLeft className="text-foreground" size={24} />
+            </Button>
           ),
         }}
       />
-
-      <ScrollView className="flex-1 bg-background">
-        <View className="p-4">
-          {/* Profile Header */}
-          <Card className="p-4 mb-6 border border-border">
-            <View className="items-center">
-              {/* Profile Image */}
-              <View className="mb-4 relative">
-                {isEditing ? (
-                  <TouchableOpacity
-                    className="w-24 h-24 rounded-full bg-primary/10 items-center justify-center"
-                    onPress={() => {
-                      if (uploading) return;
-                      Alert.alert(
-                        'Upload Photo',
-                        'Choose how to upload',
-                        [
-                          {
-                            text: 'Choose from Library',
-                            onPress: () => pickImage(),
-                          },
-                          {
-                            text: 'Take Photo',
-                            onPress: () => takePhoto(),
-                          },
-                          { text: 'Cancel', style: 'cancel' },
-                        ],
-                        { cancelable: true }
-                      );
-                    }}
-                  >
-                    {uploading ? (
-                      <ActivityIndicator size="small" color="#0000ff" />
-                    ) : profile.avatar ? (
-                      <Image source={{ uri: profile.avatar }} className="w-24 h-24 rounded-full" />
-                    ) : (
-                      <>
-                        <Text className="text-primary text-3xl font-semibold">
-                          {profile.name?.substring(0, 1).toUpperCase() || 'U'}
-                        </Text>
-                        <View className="absolute bottom-0 right-0 bg-primary rounded-full p-2">
-                          <Camera size={16} className="text-white" />
-                        </View>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ) : (
-                  <View className="w-24 h-24 rounded-full bg-primary/10 items-center justify-center">
-                    {profile.avatar ? (
-                      <Image source={{ uri: profile.avatar }} className="w-24 h-24 rounded-full" />
-                    ) : (
-                      <Text className="text-primary text-3xl font-semibold">
-                        {profile.name?.substring(0, 1).toUpperCase() || 'U'}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-
-              {/* Profile Information */}
-              {isEditing ? (
-                <View className="w-full px-2">
-                  <Text className="font-medium mb-1">Name</Text>
-                  <TextInput
-                    className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
-                    value={editedProfile.name}
-                    onChangeText={(text) => setEditedProfile({ ...editedProfile, name: text })}
-                    placeholder="Your name"
-                    placeholderTextColor="#9ca3af"
-                  />
-
-                  <View className="flex-row items-center mb-1">
-                    <AtSign size={14} className="text-muted-foreground mr-1" />
-                    <Text className="font-medium">Username</Text>
-                  </View>
-                  <TextInput
-                    className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
-                    value={editedProfile.username}
-                    onChangeText={(text) => setEditedProfile({ ...editedProfile, username: text })}
-                    placeholder="Your username"
-                    placeholderTextColor="#9ca3af"
-                  />
-
-                  <View className="flex-row items-center mb-1">
-                    <MapPin size={14} className="text-muted-foreground mr-1" />
-                    <Text className="font-medium">Location</Text>
-                  </View>
-                  <TextInput
-                    className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
-                    value={editedProfile.location}
-                    onChangeText={(text) => setEditedProfile({ ...editedProfile, location: text })}
-                    placeholder="Your location"
-                    placeholderTextColor="#9ca3af"
-                  />
-
-                  <Text className="font-medium mb-1">Bio</Text>
-                  <TextInput
-                    className="w-full bg-muted rounded-lg p-2 mb-3 text-foreground"
-                    value={editedProfile.bio}
-                    onChangeText={(text) => setEditedProfile({ ...editedProfile, bio: text })}
-                    placeholder="Tell us about yourself"
-                    placeholderTextColor="#9ca3af"
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-
-                  <Button className="w-full mt-4" onPress={saveProfile}>
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#ffffff" />
-                    ) : (
-                      <Text className="text-white font-semibold">Save Profile</Text>
-                    )}
-                  </Button>
-                </View>
-              ) : (
-                <>
-                  <View className="flex-row items-center mb-2">
-                    <User size={16} className="text-muted-foreground mr-1" />
-                    <Text className="font-semibold">{profile.name}</Text>
-                    {profile.relationship === 'friend' && <Badge className="ml-2">Friend</Badge>}
-                  </View>
-
-                  <View className="flex-row items-center mb-4">
-                    <AtSign size={14} className="text-muted-foreground mr-1" />
-                    <Text className="text-muted-foreground">{profile.username}</Text>
-                  </View>
-
-                  <View className="flex-row items-center mb-4">
-                    <MapPin size={14} className="text-muted-foreground mr-1" />
-                    <Text className="text-muted-foreground">{profile.location}</Text>
-                  </View>
-
-                  {isSelfProfile ? (
-                    <StatusUpdate
-                      userId={user?.id || ''}
-                      currentStatus={profile.status_message || ''}
-                      lastUpdate={profile.last_status_update || ''}
-                      onStatusUpdated={fetchUserProfile}
-                    />
-                  ) : profile.status_message ? (
-                    <View className="mt-4 p-4 bg-muted rounded-lg">
-                      <Text className="text-sm italic text-foreground">{profile.status_message}</Text>
-                    </View>
-                  ) : null}
-                </>
-              )}
-            </View>
-
-            <View className="flex-row w-full">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onPress={() =>
-                  router.push({
-                    pathname: '/(app)/direct-message/[id]',
-                    params: {
-                      id: profile.id,
-                      username: profile.username,
-                    },
-                  })
-                }
-              >
-                <MessageSquare size={16} className="text-foreground mr-1" />
-                <Text>Message</Text>
-              </Button>
-            </View>
-          </Card>
-
-          {/* Gallery Section */}
-          <Card className="p-4 mb-6 border border-border">
-            <>
-              <View className="items-center p-4">
-                <Text className="text-lg font-semibold">Gallery</Text>
-              </View>
-
-              {/* Gallery View */}
-              <GalleryView
-                images={galleryImages}
-                userId={user?.id || ''}
-                isOwner={isSelfProfile}
-                onImageAdded={() => {}}
-                onImageDeleted={() => {}}
-              />
-            </>
-          </Card>
-
-          {profile && !isSelfProfile && user?.id && (
-            <RelationshipActions
-              userId={user.id}
-              targetId={profile.id}
-              relationshipType={profile.relationship}
-              onRelationshipChange={fetchUserProfile}
-            />
-          )}
-        </View>
+      <ScrollView
+        className="flex-1"
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
+      >
+        {renderHeader()}
+        {renderProfileInfo()}
+        {renderGallery()}
       </ScrollView>
-    </>
+    </View>
   );
 }

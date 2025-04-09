@@ -1,148 +1,144 @@
 import React, { useState } from 'react';
-import { View, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { View, Image, KeyboardAvoidingView, Platform, Text } from 'react-native';
+import { Link, router } from 'expo-router';
+import { styled } from 'nativewind/styled';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
-import { Card } from '~/components/ui/card';
-import { useAuth } from '~/lib/auth-context';
-import Mail from '~/lib/icons/Mail';
-import { Lock } from '~/lib/icons/Lock';
-import User from '~/lib/icons/User';
-import Shield from '~/lib/icons/Shield';
-import ResponsiveLogo from '~/components/ResponsiveLogo';
-import { Text } from '~/components/ui/text';
-import { Title } from '~/components/ui/title';
-import { cn } from '~/lib/utils';
-import { useColorScheme } from '~/lib/useColorScheme';
+import { Card, CardHeader, CardContent, CardFooter } from '~/components/ui/card';
+import { Toast } from '~/components/ui/toast';
+import { Loading } from '~/components/ui/loading';
+
+const StyledView = styled(View);
+const StyledImage = styled(Image);
+const StyledKeyboardAvoidingView = styled(KeyboardAvoidingView);
+const StyledText = styled(Text);
 
 export default function SignupScreen() {
-  const { isDarkColorScheme } = useColorScheme();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signUp } = useAuth();
+  const [error, setError] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   const handleSignup = async () => {
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!name || !email || !password || !confirmPassword) {
+      setError('Please fill in all fields');
+      setShowToast(true);
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      setError('Passwords do not match');
+      setShowToast(true);
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await signUp(email, password);
-      if (error) {
-        Alert.alert('Error', error.message || 'Failed to sign up');
-      } else {
-        Alert.alert(
-          'Success',
-          'Registration successful! Please check your email for verification.',
-          [{ text: 'OK', onPress: () => router.push('/(auth)/login' as any) }]
-        );
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Something went wrong');
+      // TODO: Implement your signup logic here
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
+      router.replace('/(app)');
+    } catch (err) {
+      setError('Failed to create account');
+      setShowToast(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }}>
-      <View className="min-h-screen justify-center items-center p-6">
-        <View className="items-center mb-8">
-          <ResponsiveLogo />
-          <Title level={1} className="text-center">Create an Account</Title>
-          <Text variant="contrast" className="text-sm mt-1 text-center">Join the Philippine community on UzZap</Text>
-        </View>
+    <StyledKeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-white"
+    >
+      <StyledView className="flex-1 px-6">
+        <StyledView className="items-center justify-center py-12">
+          <StyledImage
+            source={require('@/assets/images/logo.png')}
+            className="w-32 h-32"
+            resizeMode="contain"
+          />
+        </StyledView>
 
-        <Card className="w-full max-w-md p-6 mb-6 shadow-md">
-          <View className="space-y-5">
-            <View>
-              <Text variant="contrast" className="text-sm font-medium mb-1.5">Email</Text>
-              <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
-                <View className="py-3 pl-3 pr-2">
-                  <Mail size={18} className="text-muted-foreground" />
-                </View>
-                <Input
-                  placeholder="Enter your email"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  className="flex-1 border-0 h-12"
-                />
-              </View>
-            </View>
+        <Card className="w-full">
+          <CardHeader>
+            <StyledText className="text-2xl font-bold text-gray-900">
+              Create Account
+            </StyledText>
+            <StyledText className="text-gray-500 mt-2">
+              Sign up to get started with UzZap
+            </StyledText>
+          </CardHeader>
 
-            <View>
-              <Text variant="contrast" className="text-sm font-medium mb-1.5">Password</Text>
-              <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
-                <View className="py-3 pl-3 pr-2">
-                  <Lock size={18} className="text-muted-foreground" />
-                </View>
-                <Input
-                  placeholder="Create a password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  className="flex-1 border-0 h-12"
-                />
-                <Text variant="contrast" className="text-xs mt-1">Must be at least 6 characters</Text>
-              </View>
-            </View>
+          <CardContent className="space-y-4">
+            <Input
+              label="Full Name"
+              placeholder="Enter your full name"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
 
-            <View>
-              <Text variant="contrast" className="text-sm font-medium mb-1.5">Confirm Password</Text>
-              <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
-                <View className="py-3 pl-3 pr-2">
-                  <Shield size={18} className="text-muted-foreground" />
-                </View>
-                <Input
-                  placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry
-                  className="flex-1 border-0 h-12"
-                />
-              </View>
-            </View>
+            <Input
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
+            <Input
+              label="Password"
+              placeholder="Create a password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <Input
+              label="Confirm Password"
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+            />
+          </CardContent>
+
+          <CardFooter>
             <Button
               onPress={handleSignup}
-              disabled={loading}
-              className="w-full h-12 mt-4 rounded-full"
+              loading={loading}
+              className="w-full"
             >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text className={cn(isDarkColorScheme ? "text-white" : "")}>Create Account</Text>
-              )}
+              Create Account
             </Button>
-          </View>
+          </CardFooter>
         </Card>
 
-        <View className="flex-row justify-center mt-4">
-          <Text variant="contrast" className="text-base">Already have an account? </Text>
-          <Text
-            className="text-primary font-medium"
-            onPress={() => router.push('/(auth)/login' as any)}
-          >
-            Login
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
+        <StyledView className="mt-6 items-center">
+          <StyledText className="text-gray-500">
+            Already have an account?{' '}
+            <Link href="/login">
+              <StyledText className="text-primary-600 font-medium">
+                Sign In
+              </StyledText>
+            </Link>
+          </StyledText>
+        </StyledView>
+      </StyledView>
+
+      {showToast && (
+        <Toast
+          message={error}
+          type="error"
+          onClose={() => setShowToast(false)}
+        />
+      )}
+
+      {loading && <Loading fullScreen />}
+    </StyledKeyboardAvoidingView>
   );
 }

@@ -1,117 +1,117 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  TextInput,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  FlatList,
-  Image,
-  TouchableOpacity,
+  TextInput,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Text } from '~/components/ui/text';
+import { Card, CardContent } from '~/components/ui/card';
+import { Avatar } from '~/components/ui/avatar';
+import { Button } from '~/components/ui/button';
+import { Input } from '~/components/ui/input';
 import { Badge } from '~/components/ui/badge';
 import { useAuth } from '~/lib/auth-context';
-import { Send, MapPin, Users, Smile, Paperclip, Mic } from 'lucide-react-native';
+import { Send, Users, Smile, Paperclip, Mic, MapPin, Bell, Search } from 'lucide-react-native';
 import { supabase } from '~/lib/supabase';
-import { ChatBubble } from '~/components/messages/ChatBubble';
+import { cn } from '~/lib/utils';
+import { User } from '@supabase/supabase-js';
 
-// Define types for Supabase data
+type ExtendedUser = User & {
+  avatar_url?: string;
+  username?: string;
+};
+
 interface Profile {
+  id: string;
   username: string;
-  avatar_url: string | null;
+  full_name?: string;
+  avatar_url?: string;
+  is_online?: boolean;
 }
 
-interface MessageData {
+interface Message {
   id: string;
+  chatroom_id: string;
   user_id: string;
   content: string;
   created_at: string;
-  profiles: Profile;
-}
-
-// Chat message type for rendered UI
-interface ChatMessage {
-  id: string;
-  user_id: string;
-  userId?: string;
-  userName: string;
-  userAvatar: string | null;
-  content: string;
-  text?: string;
-  created_at: string;
-  timestamp?: Date;
-  isCurrentUser: boolean;
+  sender: Profile;
 }
 
 export default function ChatroomScreen() {
-  const { id, provinceName, regionName } = useLocalSearchParams();
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { id, provinceName, regionName } = useLocalSearchParams<{ id: string; provinceName: string; regionName: string }>();
+  const { user } = useAuth() as { user: ExtendedUser | null };
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        if (!id) return;
+  const fetchMessages = async () => {
+    if (!id) return;
 
-        // Fetch messages from the database
-        const { data: messagesData, error: messagesError } = await supabase
-          .from('messages')
-          .select('id, content, created_at, user_id, profiles(username, avatar_url)')
-          .eq('chatroom_id', id)
-          .order('created_at', { ascending: true });
+    try {
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          chatroom_id,
+          user_id,
+          content,
+          created_at,
+          sender:profiles!messages_user_id_fkey (
+            id,
+            username,
+            full_name,
+            avatar_url,
+            is_online
+          )
+        `)
+        .eq('chatroom_id', id)
+        .order('created_at', { ascending: true });
 
-        if (messagesError) {
-          console.error('Error fetching messages:', messagesError);
-          return;
-        }
+      if (messagesError) throw messagesError;
 
-        // Fetch online users count
-        const { data: onlineData, error: onlineError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('is_online', true);
+      const { data: onlineData, error: onlineError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('is_online', true);
 
-        if (onlineError) {
-          console.error('Error fetching online users:', onlineError);
-        } else {
-          setOnlineUsers(onlineData?.length || 0);
-        }
-
-        // Map the data to our ChatMessage interface
-        const formattedMessages = messagesData?.map(msg => {
-          const profile = Array.isArray(msg.profiles) ? msg.profiles[0] : msg.profiles;
-          
-          // Add logging to check user IDs
-          console.log(`Message user_id: ${msg.user_id}, Current user ID: ${user?.id}, isCurrentUser: ${msg.user_id === user?.id}`);
-          return {
-            id: msg.id,
-            user_id: msg.user_id,
-            userId: msg.user_id,
-            userName: profile?.username || 'Anonymous User',
-            userAvatar: profile?.avatar_url,
-            content: msg.content,
-            text: msg.content,
-            created_at: msg.created_at,
-            timestamp: new Date(msg.created_at),
-            isCurrentUser: msg.user_id === user?.id,
-            // Add logging to check user IDs
-            console.log(`Message user_id: ${msg.user_id}, Current user ID: ${user?.id}, isCurrentUser: ${msg.user_id === user?.id}`);
-          };
-        }) || [];
-
-        setMessages(formattedMessages);
-      } catch (error) {
-        console.error('Error in fetchMessages:', error);
+      if (onlineError) {
+        console.error('Error fetching online users:', onlineError);
+      } else {
+        setOnlineUsers(onlineData?.length || 0);
       }
-    };
 
+      // Transform the data to match the Message type
+      const transformedMessages = messagesData?.map(msg => ({
+        ...msg,
+        sender: Array.isArray(msg.sender) ? msg.sender[0] : msg.sender
+      })) as Message[];
+
+      setMessages(transformedMessages || []);
+    } catch (error) {
+      console.error('Error in fetchMessages:', error);
+      Alert.alert('Error', 'Failed to load messages');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchMessages();
 
-    // Set up real-time subscription
     const subscription = supabase
       .channel('public:messages')
       .on('postgres_changes', {
@@ -122,192 +122,241 @@ export default function ChatroomScreen() {
       }, async (payload) => {
         const { data: userData, error: userError } = await supabase
           .from('profiles')
-          .select('username, avatar_url')
+          .select('id, username, full_name, avatar_url, is_online')
           .eq('id', payload.new.user_id)
           .single();
 
-        const newMessage: ChatMessage = {
+        if (userError) {
+          console.error('Error fetching user data:', userError);
+          return;
+        }
+
+        const newMessage: Message = {
           id: payload.new.id,
+          chatroom_id: payload.new.chatroom_id,
           user_id: payload.new.user_id,
-          userId: payload.new.user_id,
-          userName: userData ? userData.username : 'Anonymous User',
-          userAvatar: userData ? userData.avatar_url : null,
           content: payload.new.content,
-          text: payload.new.content,
           created_at: payload.new.created_at,
-          timestamp: new Date(payload.new.created_at),
-          isCurrentUser: payload.new.user_id === user?.id
+          sender: userData
         };
 
         setMessages(prev => [...prev, newMessage]);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       })
       .subscribe();
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [id, user?.id]);
+  }, [id]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchMessages();
+  };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user?.id || !id) return;
-    
+
     try {
-      const messageContent = newMessage.trim();
-      
       const { error } = await supabase
         .from('messages')
         .insert({
           chatroom_id: id,
           user_id: user.id,
-          content: messageContent
+          content: newMessage.trim()
         });
 
-      if (error) {
-        console.error('Error sending message:', error);
-        return;
-      }
-      
+      if (error) throw error;
       setNewMessage('');
-      
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
     } catch (error) {
-      console.error('Error in sendMessage:', error);
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const formatTime = (date: Date) => {
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (e.nativeEvent.key === 'Enter') {
+      sendMessage();
     }
   };
+
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isMe = item.user_id === user?.id;
+    
+    return (
+      <View className={cn(
+        "flex-row mb-4",
+        isMe ? "justify-end" : "justify-start"
+      )}>
+        {!isMe && (
+          <TouchableOpacity
+            onPress={() => router.push(`/profile/${item.sender.id}`)}
+            className="mr-2"
+          >
+            <Avatar
+              src={item.sender.avatar_url}
+              alt={item.sender.username}
+              size="sm"
+              fallback={item.sender.username?.[0]?.toUpperCase()}
+            />
+          </TouchableOpacity>
+        )}
+        <View className={cn(
+          "max-w-[80%]",
+          isMe ? "items-end" : "items-start"
+        )}>
+          {!isMe && (
+            <Text className="text-xs text-muted-foreground mb-1">
+              {item.sender.full_name || item.sender.username}
+            </Text>
+          )}
+          <Card className={cn(
+            "rounded-2xl",
+            isMe ? "bg-primary" : "bg-muted"
+          )}>
+            <CardContent className="p-3">
+              <Text className={cn(
+                isMe ? "text-primary-foreground" : "text-foreground"
+              )}>
+                {item.content}
+              </Text>
+            </CardContent>
+          </Card>
+          <Text className="text-xs text-muted-foreground mt-1">
+            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+        {isMe && (
+          <Avatar
+            src={user?.avatar_url}
+            alt={user?.username || 'User'}
+            size="sm"
+            className="ml-2"
+            fallback={(user?.username?.[0] || 'U').toUpperCase()}
+          />
+        )}
+      </View>
+    );
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-background"
     >
       <Stack.Screen
         options={{
-          title: provinceName as string || 'Chatroom',
+          title: provinceName || 'Chat',
           headerRight: () => (
             <View className="flex-row items-center">
-              <Badge className="mr-2" variant="outline">
-                <Users size={14} className="mr-1" />
-                <Text className="text-xs">{onlineUsers}</Text>
+              <Badge variant="secondary" className="mr-2">
+                <Users size={12} className="mr-1" />
+                <Text className="text-xs">{onlineUsers} online</Text>
               </Badge>
             </View>
           ),
         }}
       />
 
-      <View className="flex-1 bg-background">
-        <View className="bg-primary/10 p-3 flex-row items-center justify-between">
+      <View className="p-4">
+        <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center">
-            <MapPin size={16} className="text-primary mr-2" />
-            <Text className="text-sm font-medium">{regionName}</Text>
+            <Avatar
+              src={user?.avatar_url}
+              alt={user?.username || 'User'}
+              className="w-8 h-8 mr-2"
+              fallback={(user?.username?.[0] || 'U').toUpperCase()}
+            />
+            <View>
+              <Text className="text-lg font-semibold">Welcome back,</Text>
+              <Text className="text-muted-foreground">
+                {user?.username || 'User'}
+              </Text>
+            </View>
           </View>
-          <Badge variant="outline">
-            <Text className="text-xs">{provinceName}</Text>
-          </Badge>
+          <View className="flex-row space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/notifications')}
+            >
+              <Bell size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/search')}
+            >
+              <Search size={20} />
+            </Button>
+          </View>
         </View>
-
         <FlatList
           ref={flatListRef}
           data={messages}
+          renderItem={renderMessage}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
-          initialNumToRender={15}
-          onContentSizeChange={() => {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }}
-          renderItem={({ item }) => (
-            <View
-              className={`mb-4 max-w-[80%] flex ${item.isCurrentUser ? 'self-end' : 'self-start'}`}
-            >
-              <View className="flex-row items-end">
-                {!item.isCurrentUser && (
-                  <View className="mr-2 mb-2">
-                    {item.userAvatar ? (
-                      <Image
-                        source={{ uri: item.userAvatar }}
-                        className="w-6 h-6 rounded-full bg-muted"
-                      />
-                    ) : (
-                      <View className="w-6 h-6 rounded-full bg-primary/80 items-center justify-center">
-                        <Text className="text-xs font-medium text-primary-foreground">
-                          {item.userName?.substring(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                <View className="flex-1">
-                  {!item.isCurrentUser && (
-                    <Text className="text-xs text-muted-foreground mb-1">
-                      {item.userName}
-                    </Text>
-                  )}
-                  
-                  <ChatBubble 
-                    message={item.text || item.content}
-                    isCurrentUser={item.isCurrentUser}
-                  />
-                  
-                  <Text 
-                    className="text-xs text-muted-foreground mt-1"
-                    style={{ alignSelf: item.isCurrentUser ? 'flex-end' : 'flex-start' }}
-                  >
-                    {formatTime(item.timestamp || new Date(item.created_at))}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
+          className="flex-1 p-4"
+          inverted={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
         />
+      </View>
 
-        <View className="border-t border-border p-2 bg-background">
-          <View className="flex-row items-center bg-muted rounded-full p-1">
-            <View className="flex-row space-x-1 p-1">
-              <TouchableOpacity className="p-2">
-                <Smile size={22} className="text-muted-foreground" />
-              </TouchableOpacity>
-              <TouchableOpacity className="p-2">
-                <Paperclip size={22} className="text-muted-foreground" />
-              </TouchableOpacity>
-            </View>
-            
-            <TextInput
-              className="flex-1 px-3 py-2 text-foreground"
-              placeholder="Type a message..."
-              placeholderTextColor="#9ca3af"
-              value={newMessage}
-              onChangeText={setNewMessage}
-              multiline
-              maxLength={500}
-            />
-            
-            {newMessage.trim() ? (
-              <TouchableOpacity 
-                className="bg-primary w-10 h-10 rounded-full items-center justify-center mr-1"
-                onPress={sendMessage}
-              >
-                <Send size={18} color="#ffffff" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity className="p-2 mr-1">
-                <Mic size={22} className="text-muted-foreground" />
-              </TouchableOpacity>
-            )}
+      <View className="p-4 border-t border-border">
+        <View className="flex-row items-center space-x-2">
+          <View className="flex-row space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {/* Handle attachment */}}
+            >
+              <Paperclip size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {/* Handle emoji */}}
+            >
+              <Smile size={20} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {/* Handle location */}}
+            >
+              <MapPin size={20} />
+            </Button>
           </View>
+          
+          <TextInput
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message..."
+            className="flex-1 bg-input text-foreground px-3 py-2 rounded-md"
+            onKeyPress={handleKeyPress}
+          />
+          
+          <Button
+            size="sm"
+            className="ml-2"
+            onPress={sendMessage}
+            disabled={!newMessage.trim()}
+          >
+            <Send size={20} />
+          </Button>
         </View>
       </View>
     </KeyboardAvoidingView>

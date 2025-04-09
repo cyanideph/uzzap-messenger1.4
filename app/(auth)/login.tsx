@@ -1,109 +1,126 @@
 import React, { useState } from 'react';
-import { View, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { View, Image, KeyboardAvoidingView, Platform, Text } from 'react-native';
+import { Link, router } from 'expo-router';
+import { styled } from 'nativewind/styled';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
-import { Card } from '~/components/ui/card';
-import { useAuth } from '~/lib/auth-context';
-import Mail from '~/lib/icons/Mail';
-import { Lock } from '~/lib/icons/Lock';
-import ResponsiveLogo from '~/components/ResponsiveLogo';
-import { Text } from '~/components/ui/text';
-import { Title } from '~/components/ui/title';
+import { Card, CardHeader, CardContent, CardFooter } from '~/components/ui/card';
+import { Toast } from '~/components/ui/toast';
+import { Loading } from '~/components/ui/loading';
+
+const StyledView = styled(View);
+const StyledImage = styled(Image);
+const StyledKeyboardAvoidingView = styled(KeyboardAvoidingView);
+const StyledText = styled(Text);
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [error, setError] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setError('Please fill in all fields');
+      setShowToast(true);
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await signIn(email, password);
-      if (error) {
-        Alert.alert('Error', error.message || 'Failed to sign in');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Something went wrong');
+      // TODO: Implement your login logic here
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulated API call
+      router.replace('/(app)');
+    } catch (err) {
+      setError('Invalid email or password');
+      setShowToast(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }}>
-      <View className="min-h-screen justify-center items-center p-6">
-        <View className="items-center mb-8">
-          <ResponsiveLogo />
-          <Title level={1} className="text-center">Welcome Back</Title>
-          <Text variant="contrast" className="text-sm mt-1 text-center">Sign in to your UzZap account</Text>
-        </View>
+    <StyledKeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-white"
+    >
+      <StyledView className="flex-1 px-6">
+        <StyledView className="items-center justify-center py-12">
+          <StyledImage
+            source={require('@/assets/images/logo.png')}
+            className="w-32 h-32"
+            resizeMode="contain"
+          />
+        </StyledView>
 
-        <Card className="w-full max-w-md p-6 mb-6 shadow-md">
-          <View className="space-y-5">
-            <View>
-              <Text variant="contrast" className="text-sm font-medium mb-1.5">Email</Text>
-              <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
-                <View className="py-3 pl-3 pr-2">
-                  <Mail size={18} className="text-primary" />
-                </View>
-                <Input
-                  placeholder="Enter your email"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  className="flex-1 border-0 h-12"
-                />
-              </View>
-            </View>
+        <Card className="w-full">
+          <CardHeader>
+            <StyledText className="text-2xl font-bold text-gray-900">
+              Welcome Back
+            </StyledText>
+            <StyledText className="text-gray-500 mt-2">
+              Sign in to continue to your account
+            </StyledText>
+          </CardHeader>
 
-            <View>
-              <Text variant="contrast" className="text-sm font-medium mb-1.5">Password</Text>
-              <View className="flex-row items-center border border-input rounded-md bg-background overflow-hidden">
-                <View className="py-3 pl-3 pr-2">
-                  <Lock size={18} className="text-primary" />
-                </View>
-                <Input
-                  placeholder="Enter your password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  className="flex-1 border-0 h-12"
-                />
-              </View>
-            </View>
+          <CardContent className="space-y-4">
+            <Input
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <Link href="/forgot-password" className="text-right">
+              <StyledText className="text-primary-600 text-sm">
+                Forgot Password?
+              </StyledText>
+            </Link>
+          </CardContent>
+
+          <CardFooter>
             <Button
               onPress={handleLogin}
-              disabled={loading}
-              className="w-full h-12 mt-4 rounded-full"
+              loading={loading}
+              className="w-full"
             >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text>Login</Text>
-              )}
+              Sign In
             </Button>
-          </View>
+          </CardFooter>
         </Card>
 
-        <View className="flex-row justify-center mt-4">
-          <Text variant="contrast" className="text-base">Don't have an account? </Text>
-          <Text
-            className="text-primary font-medium"
-            onPress={() => router.push('/(auth)/signup' as any)}
-          >
-            Sign up
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
+        <StyledView className="mt-6 items-center">
+          <StyledText className="text-gray-500">
+            Don't have an account?{' '}
+            <Link href="/signup">
+              <StyledText className="text-primary-600 font-medium">
+                Sign Up
+              </StyledText>
+            </Link>
+          </StyledText>
+        </StyledView>
+      </StyledView>
+
+      {showToast && (
+        <Toast
+          message={error}
+          type="error"
+          onClose={() => setShowToast(false)}
+        />
+      )}
+
+      {loading && <Loading fullScreen />}
+    </StyledKeyboardAvoidingView>
   );
 }

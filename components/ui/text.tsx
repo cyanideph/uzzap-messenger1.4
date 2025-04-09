@@ -8,10 +8,12 @@ const TextClassContext = React.createContext<string | undefined>(undefined);
 
 interface EnhancedTextProps extends SlottableTextProps {
   variant?: 'default' | 'muted' | 'accent' | 'contrast';
+  className?: string;
+  text?: string;
 }
 
 const Text = React.forwardRef<TextRef, EnhancedTextProps>(
-  ({ className, asChild = false, variant = 'default', ...props }, ref) => {
+  ({ className, asChild = false, variant = 'default', text, ...props }, ref) => {
     const textClass = React.useContext(TextClassContext);
     const Component = asChild ? Slot.Text : RNText;
     
@@ -33,7 +35,9 @@ const Text = React.forwardRef<TextRef, EnhancedTextProps>(
         )}
         ref={ref}
         {...props}
-      />
+      >
+        {text || props.children}
+      </Component>
     );
   }
 );

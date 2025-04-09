@@ -1,51 +1,61 @@
-import * as Slot from '@rn-primitives/slot';
-import type { SlottableViewProps } from '@rn-primitives/types';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { View } from 'react-native';
-import { cn } from '~/lib/utils';
-import { TextClassContext } from '~/components/ui/text';
+import React from 'react';
+import { View, Text } from 'react-native';
+import { styled } from 'nativewind';
 
-const badgeVariants = cva(
-  'web:inline-flex items-center rounded-full border border-border px-2.5 py-0.5 web:transition-colors web:focus:outline-none web:focus:ring-2 web:focus:ring-ring web:focus:ring-offset-2',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary web:hover:opacity-80 active:opacity-80',
-        secondary: 'border-transparent bg-secondary web:hover:opacity-80 active:opacity-80',
-        destructive: 'border-transparent bg-destructive web:hover:opacity-80 active:opacity-80',
-        outline: 'text-foreground',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  }
-);
+const StyledView = styled(View);
+const StyledText = styled(Text);
 
-const badgeTextVariants = cva('text-xs font-semibold ', {
-  variants: {
-    variant: {
-      default: 'text-primary-foreground',
-      secondary: 'text-secondary-foreground',
-      destructive: 'text-destructive-foreground',
-      outline: 'text-foreground',
-    },
-  },
-  defaultVariants: {
-    variant: 'default',
-  },
-});
-
-type BadgeProps = SlottableViewProps & VariantProps<typeof badgeVariants>;
-
-function Badge({ className, variant, asChild, ...props }: BadgeProps) {
-  const Component = asChild ? Slot.View : View;
-  return (
-    <TextClassContext.Provider value={badgeTextVariants({ variant })}>
-      <Component className={cn(badgeVariants({ variant }), className)} {...props} />
-    </TextClassContext.Provider>
-  );
+interface BadgeProps {
+  children: React.ReactNode;
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-export { Badge, badgeTextVariants, badgeVariants };
-export type { BadgeProps };
+export function Badge({
+  children,
+  variant = 'default',
+  size = 'md',
+  className = '',
+}: BadgeProps) {
+  const baseStyles = 'rounded-full items-center justify-center';
+  
+  const variantStyles = {
+    default: 'bg-primary-100 text-primary-700',
+    secondary: 'bg-secondary-100 text-secondary-700',
+    destructive: 'bg-red-100 text-red-700',
+    outline: 'border border-gray-200 text-gray-700',
+  };
+
+  const sizeStyles = {
+    sm: 'px-2 py-0.5',
+    md: 'px-2.5 py-1',
+    lg: 'px-3 py-1.5',
+  };
+
+  const textSizeStyles = {
+    sm: 'text-xs',
+    md: 'text-sm',
+    lg: 'text-base',
+  };
+
+  return (
+    <StyledView
+      className={`
+        ${baseStyles}
+        ${variantStyles[variant]}
+        ${sizeStyles[size]}
+        ${className}
+      `}
+    >
+      <StyledText
+        className={`
+          font-medium
+          ${textSizeStyles[size]}
+        `}
+      >
+        {children}
+      </StyledText>
+    </StyledView>
+  );
+}

@@ -1,61 +1,84 @@
-import type { TextRef, ViewRef } from '@rn-primitives/types';
-import * as React from 'react';
-import { Text, TextProps, View, ViewProps } from 'react-native';
-import { TextClassContext } from '~/components/ui/text';
-import { cn } from '~/lib/utils';
+import React from 'react';
+import { View, Text } from 'react-native';
+import { styled } from 'nativewind';
 
-const Card = React.forwardRef<ViewRef, ViewProps>(({ className, ...props }, ref) => (
-  <View
-    ref={ref}
-    className={cn(
-      'rounded-lg border border-border bg-card shadow-sm shadow-foreground/10',
-      className
-    )}
-    {...props}
-  />
-));
-Card.displayName = 'Card';
+const StyledView = styled(View);
+const StyledText = styled(Text);
 
-const CardHeader = React.forwardRef<ViewRef, ViewProps>(({ className, ...props }, ref) => (
-  <View ref={ref} className={cn('flex flex-col space-y-1.5 p-6 pb-3', className)} {...props} />
-));
-CardHeader.displayName = 'CardHeader';
+interface CardProps {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'elevated' | 'outlined';
+}
 
-const CardTitle = React.forwardRef<TextRef, React.ComponentPropsWithoutRef<typeof Text>>(
-  ({ className, ...props }, ref) => (
-    <Text
-      role='heading'
-      aria-level={3}
-      ref={ref}
-      className={cn(
-        'text-2xl text-card-foreground font-semibold leading-none tracking-tight',
-        className
+export function Card({
+  title,
+  children,
+  className = '',
+  variant = 'default',
+}: CardProps) {
+  const baseStyles = 'rounded-xl p-4';
+  
+  const variantStyles = {
+    default: 'bg-white',
+    elevated: 'bg-white shadow-lg',
+    outlined: 'bg-white border border-gray-200',
+  };
+
+  return (
+    <StyledView
+      className={`
+        ${baseStyles}
+        ${variantStyles[variant]}
+        ${className}
+      `}
+    >
+      {title && (
+        <StyledText className="mb-2 text-lg font-semibold text-gray-900">
+          {title}
+        </StyledText>
       )}
-      {...props}
-    />
-  )
-);
-CardTitle.displayName = 'CardTitle';
+      {children}
+    </StyledView>
+  );
+}
 
-const CardDescription = React.forwardRef<TextRef, TextProps>(({ className, ...props }, ref) => (
-  <Text 
-    ref={ref} 
-    className={cn('text-sm text-muted-foreground mt-1.5', className)} 
-    {...props} 
-  />
-));
-CardDescription.displayName = 'CardDescription';
+interface CardHeaderProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-const CardContent = React.forwardRef<ViewRef, ViewProps>(({ className, ...props }, ref) => (
-  <TextClassContext.Provider value='text-card-foreground'>
-    <View ref={ref} className={cn('px-6 py-3', className)} {...props} />
-  </TextClassContext.Provider>
-));
-CardContent.displayName = 'CardContent';
+export function CardHeader({ children, className = '' }: CardHeaderProps) {
+  return (
+    <StyledView className={`mb-4 ${className}`}>
+      {children}
+    </StyledView>
+  );
+}
 
-const CardFooter = React.forwardRef<ViewRef, ViewProps>(({ className, ...props }, ref) => (
-  <View ref={ref} className={cn('flex flex-row items-center justify-center p-6 pt-3', className)} {...props} />
-));
-CardFooter.displayName = 'CardFooter';
+interface CardContentProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };
+export function CardContent({ children, className = '' }: CardContentProps) {
+  return (
+    <StyledView className={className}>
+      {children}
+    </StyledView>
+  );
+}
+
+interface CardFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardFooter({ children, className = '' }: CardFooterProps) {
+  return (
+    <StyledView className={`mt-4 ${className}`}>
+      {children}
+    </StyledView>
+  );
+}

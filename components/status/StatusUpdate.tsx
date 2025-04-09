@@ -72,7 +72,9 @@ export function StatusUpdate({ userId, currentStatus, lastUpdate, onStatusUpdate
           maxLength={100}
         />
         <Button
-          size="icon"
+          size="sm"
+          variant="ghost"
+          className="p-2"
           disabled={!status.trim() || updating}
           onPress={updateStatus}
         >

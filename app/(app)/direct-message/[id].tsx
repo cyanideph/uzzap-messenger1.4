@@ -1,462 +1,279 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  FlatList,
-  Image,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, FlatList, TouchableOpacity, RefreshControl, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Text } from '~/components/ui/text';
-import { Badge } from '~/components/ui/badge';
+import { Card, CardContent } from '~/components/ui/card';
+import { Avatar } from '~/components/ui/avatar';
+import { Button } from '~/components/ui/button';
+import { Input } from '~/components/ui/input';
 import { useAuth } from '~/lib/auth-context';
-import { Send, ArrowLeft, Phone, Video, Smile, Paperclip } from 'lucide-react-native';
-import { useColorScheme } from '~/lib/useColorScheme';
 import { supabase } from '~/lib/supabase';
-import { trackActivity } from '~/lib/activity';
-import { ReadReceipts } from '~/components/messages/ReadReceipts';
-import { ChatBubble } from '~/components/messages/ChatBubble';
+import { AuthUser } from '~/lib/supabase';
+import { MessageSquare, Send, User, ArrowLeft } from 'lucide-react-native';
+import { cn } from '~/lib/utils';
 
-// Type definitions for Supabase data
 interface Profile {
+  id: string;
   username: string;
-  avatar_url: string | null;
-  full_name?: string;
+  avatar_url?: string;
+  is_online?: boolean;
 }
 
 interface DMData {
   id: string;
-  sender_id: string;
-  recipient_id: string;
-  content: string;
+  user_id: string;
+  related_user: Profile;
   created_at: string;
-  is_read: boolean;
-  sender?: Profile;
-  recipient?: Profile;
 }
 
-// Direct message type for UI
 interface DirectMessage {
   id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string | null;
-  text: string;
-  timestamp: Date;
-  isCurrentUser: boolean;
-  isRead?: boolean;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  sender: Profile;
 }
 
 export default function DirectMessageScreen() {
-  const { id, username } = useLocalSearchParams<{ id: string; username: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const { isDarkColorScheme } = useColorScheme();
-  const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [conversation, setConversation] = useState<DMData | null>(null);
+  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [recipientProfile, setRecipientProfile] = useState<Profile | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const checkExistingConversation = async (user1Id: string, user2Id: string) => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select('id')
-      .or(`user1_id.eq.${user1Id},user2_id.eq.${user1Id}`)
-      .or(`user1_id.eq.${user2Id},user2_id.eq.${user2Id}`)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error checking for existing conversation:', error);
-    }
-    return data;
-  };
-
-  const createConversation = async (user1Id: string, user2Id: string) => {
-    const existingConv = await checkExistingConversation(user1Id, user2Id);
-    if (existingConv) return existingConv.id;
-
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({
-        user1_id: user1Id,
-        user2_id: user2Id,
-        created_at: new Date().toISOString()
-      })
-      .select('id')
-      .single();
-    
-    if (error) {
-      console.error('Error creating conversation:', error);
-      return null;
-    }
-    
-    return data.id;
-  };
-
-  useEffect(() => {
-    if (!id || !user?.id) return;
-
-    const fetchMessages = async () => {
-      try {
-        setLoading(true);
-
-        // Get recipient profile info
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('username, avatar_url, full_name')
-          .eq('id', id)
-          .single();
-
-        if (profileError) {
-          console.error('Error fetching recipient profile:', profileError);
-        } else {
-          setRecipientProfile(profileData);
-        }
-
-        // Check if a conversation exists or create one
-        const conversationId = await createConversation(user.id, id);
-
-        if (!conversationId) {
-          console.error('Failed to create or fetch conversation');
-          return;
-        }
-
-        // Fetch messages
-        const { data: messagesData, error: messagesError } = await supabase
-          .from('direct_messages')
-          .select('id, sender_id, recipient_id, content, created_at, is_read')
-          .or(`sender_id=eq.${user.id},recipient_id=eq.${id},sender_id=eq.${id},recipient_id=eq.${user.id}`)
-          .order('created_at', { ascending: true });
-
-        if (messagesError) {
-          console.error('Error fetching messages:', messagesError);
-          return;
-        }
-
-        // Format messages for display
-        const formattedMessages: DirectMessage[] = messagesData.map((msg) => ({
-          id: msg.id,
-          userId: msg.sender_id,
-          userName: msg.sender_id === user?.id ? 'You' : (profileData?.username || 'User'),
-          userAvatar: msg.sender_id === user?.id ? null : profileData?.avatar_url,
-          text: msg.content,
-          timestamp: new Date(msg.created_at),
-          isCurrentUser: msg.sender_id === user?.id,
-          isRead: msg.is_read,
-        }));
-
-        setMessages(formattedMessages);
-
-        // Mark messages as read
-        if (messagesData.some(msg => msg.recipient_id === user.id && !msg.is_read)) {
-          const { error: updateError } = await supabase
-            .from('direct_messages')
-            .update({ is_read: true })
-            .eq('recipient_id', user.id)
-            .eq('sender_id', id);
-
-          if (updateError) {
-            console.error('Error marking messages as read:', updateError);
-          }
-        }
-      } catch (error) {
-        console.error('Unexpected error in fetchMessages:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMessages();
-
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('public:direct_messages')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'direct_messages',
-        filter: `sender_id=eq.${user.id},recipient_id=eq.${id}`
-      }, async (payload) => {
-        const newMsg = payload.new as DMData;
-        const isCurrentUser = newMsg.sender_id === user.id;
-
-        // Add new message to state
-        const formattedMessage: DirectMessage = {
-          id: newMsg.id,
-          userId: newMsg.sender_id,
-          userName: isCurrentUser ? 'You' : (recipientProfile?.username || 'User'),
-          userAvatar: isCurrentUser ? null : recipientProfile?.avatar_url ?? null,
-          text: newMsg.content,
-          timestamp: new Date(newMsg.created_at),
-          isCurrentUser,
-          isRead: newMsg.is_read,
-        };
-
-        setMessages(prev => [...prev, formattedMessage]);
-
-        // Mark message as read if we're the recipient
-        if (newMsg.recipient_id === user.id) {
-          const { error: updateError } = await supabase
-            .from('direct_messages')
-            .update({ is_read: true })
-            .eq('id', newMsg.id);
-
-          if (updateError) {
-            console.error('Error marking message as read:', updateError);
-          }
-        }
-
-        // Scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      })
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [id, user?.id, username]);
-
-  useEffect(() => {
-    if (!user?.id || !id) return;
-
-    // Track profile view
-    trackActivity(user.id, 'view_profile', { viewed_user_id: id });
-  }, [user?.id, id]);
-
-  const sendMessage = async () => {
-    if (message.trim() === '' || !user?.id || !id) return;
+  const fetchConversation = async () => {
+    if (!user?.id) return;
 
     try {
-      const messageContent = message.trim();
-      
-      // Regular message
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('direct_messages')
+        .select(`
+          id,
+          user_id,
+          related_user:related_user_id (
+            id,
+            username,
+            full_name,
+            avatar_url,
+            is_online
+          ),
+          created_at
+        `)
+        .or(`user_id.eq.${user.id},related_user_id.eq.${user.id}`)
+        .eq('related_user_id', id)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setConversation({
+          id: data.id,
+          user_id: data.user_id,
+          related_user: data.related_user[0],
+          created_at: data.created_at
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+    }
+  };
+
+  const fetchMessages = async () => {
+    if (!conversation?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          conversation_id,
+          sender_id,
+          content,
+          created_at,
+          sender:sender_id (
+            id,
+            username,
+            full_name,
+            avatar_url
+          )
+        `)
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      if (data) {
+        setMessages(data.map(msg => ({
+          ...msg,
+          sender: msg.sender[0]
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversation();
+  }, [id, user?.id]);
+
+  useEffect(() => {
+    if (conversation?.id) {
+      fetchMessages();
+    }
+  }, [conversation?.id]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchMessages();
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !conversation?.id || !user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
         .insert({
+          conversation_id: conversation.id,
           sender_id: user.id,
-          recipient_id: id,
-          content: messageContent,
-          is_read: false
+          content: newMessage.trim(),
         });
 
-      if (error) {
-        console.error('Error sending message:', error);
-        return;
-      }
-
-      // Track message send
-      trackActivity(user.id, 'send_message', {
-        recipient_id: id,
-        message_type: 'direct'
-      });
-
-      // Update the conversation's last_message_at timestamp
-      await supabase
-        .from('conversations')
-        .update({ last_message_at: new Date().toISOString() })
-        .or(`user1_id.eq.${user.id}.and.user2_id.eq.${id},user1_id.eq.${id}.and.user2_id.eq.${user.id}`);
-
-      // Clear input
-      setMessage('');
+      if (error) throw error;
+      setNewMessage('');
+      fetchMessages();
     } catch (error) {
-      console.error('Unexpected error in sendMessage:', error);
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const renderMessage = ({ item }: { item: DirectMessage }) => {
+    const isMe = item.sender_id === user?.id;
+    
+    return (
+      <View className={cn(
+        "flex-row mb-4",
+        isMe ? "justify-end" : "justify-start"
+      )}>
+        {!isMe && (
+          <Avatar
+            src={item.sender.avatar_url}
+            alt={item.sender.username}
+            size="sm"
+            fallback={item.sender.username[0].toUpperCase()}
+            className="w-8 h-8 mr-2"
+          />
+        )}
+        <View className={cn(
+          "max-w-[80%]",
+          isMe ? "items-end" : "items-start"
+        )}>
+          <Card className={cn(
+            "rounded-2xl",
+            isMe ? "bg-primary" : "bg-muted"
+          )}>
+            <CardContent className="p-3">
+              <Text className={cn(
+                isMe ? "text-primary-foreground" : "text-foreground"
+              )}>
+                {item.content}
+              </Text>
+            </CardContent>
+          </Card>
+          <Text className="text-xs text-muted-foreground mt-1">
+            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+        {isMe && (
+          <Avatar
+            src={user?.avatar_url}
+            alt={user?.username || 'You'}
+            size="sm"
+            fallback={(user?.username?.[0] || 'Y').toUpperCase()}
+            className="w-8 h-8 ml-2"
+          />
+        )}
+      </View>
+    );
   };
 
-  const renderMessageDate = (timestamp: Date) => {
-    const today = new Date();
-    const messageDate = new Date(timestamp);
-
-    if (today.toDateString() === messageDate.toDateString()) {
-      return 'Today';
-    } else if (
-      new Date(today.setDate(today.getDate() - 1)).toDateString() === messageDate.toDateString()
-    ) {
-      return 'Yesterday';
-    } else {
-      return messageDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    }
-  };
-
-  // Group messages by date
-  const groupedMessages: { [key: string]: DirectMessage[] } = {};
-  messages.forEach(msg => {
-    const dateString = renderMessageDate(msg.timestamp);
-    if (!groupedMessages[dateString]) {
-      groupedMessages[dateString] = [];
-    }
-    groupedMessages[dateString].push(msg);
-  });
-
-  // Flatten the grouped messages for FlatList
-  const flatListData: (DirectMessage | { id: string; isDateDivider: true; date: string })[] = [];
-  Object.entries(groupedMessages).forEach(([date, msgs]) => {
-    flatListData.push({ id: `date-${date}`, isDateDivider: true, date });
-    flatListData.push(...msgs);
-  });
+  if (loading && !refreshing) {
+    return (
+      <View className="flex-1 items-center justify-center bg-background">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.select({ ios: 'padding', android: 'height' })}
-      className="flex-1"
-      keyboardVerticalOffset={Platform.select({ ios: 90, android: 0 })}
+      className="flex-1 bg-background"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: () => (
-            <TouchableOpacity 
-              className="flex-row items-center" 
-              onPress={() => router.push({
-                pathname: "/profile/[id]",
-                params: { id, username }
-              })}
-            >
-              <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mr-2">
-                <Text className="text-primary font-semibold">
-                  {username?.substring(0, 1).toUpperCase() || 'U'}
-                </Text>
-              </View>
-              <Text className="font-semibold">{username || 'User'}</Text>
-            </TouchableOpacity>
-          ),
+          headerTitle: conversation?.related_user.username || 'Chat',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} className="mr-2">
-              <ArrowLeft size={24} color={isDarkColorScheme ? '#fff' : '#000'} />
-            </TouchableOpacity>
-          ),
-          headerRight: () => (
-            <View className="flex-row space-x-4">
-              <TouchableOpacity onPress={() => {/* Add voice call functionality */}}>
-                <Phone size={20} color={isDarkColorScheme ? '#fff' : '#000'} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => {/* Add video call functionality */}}>
-                <Video size={20} color={isDarkColorScheme ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            </View>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2"
+              onPress={() => router.back()}
+            >
+              <ArrowLeft className="text-foreground" size={24} />
+            </Button>
           ),
         }}
       />
-
-      <View className="flex-1 bg-background">
-        {loading ? (
-          <View className="flex-1 justify-center items-center">
-            <ActivityIndicator size="large" color="#6366F1" />
-            <Text className="mt-4 text-muted-foreground">Loading messages...</Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={flatListData}
-            keyExtractor={(item) => 'isDateDivider' in item ? item.id : item.id}
-            contentContainerStyle={{ paddingTop: 16, paddingBottom: 8, paddingHorizontal: 16 }}
-            initialNumToRender={25}
-            onContentSizeChange={() => {
-              flatListRef.current?.scrollToEnd({ animated: false });
-            }}
-            renderItem={({ item }) => {
-              if ('isDateDivider' in item && item.isDateDivider) {
-                return (
-                  <View className="flex-row justify-center my-4">
-                    <Badge variant="outline">
-                      {item.date}
-                    </Badge>
-                  </View>
-                );
-              }
-
-              const message = item as DirectMessage;
-
-              return (
-                <View
-                  className={`mb-4 max-w-[80%] flex ${message.isCurrentUser ? 'self-end' : 'self-start'}`}
-                >
-                  <View className="flex-row items-end">
-                    {!message.isCurrentUser && message.userAvatar && (
-                      <Image
-                        source={{ uri: message.userAvatar }}
-                        className="w-6 h-6 rounded-full bg-muted mr-2"
-                      />
-                    )}
-                    
-                    <ChatBubble
-                      message={message.text || ""}
-                      isCurrentUser={message.isCurrentUser}
-                    />
-                    
-                    {message.isCurrentUser && (
-                      <View className="ml-2">
-                        <ReadReceipts
-                          messageId={message.id}
-                          isRead={message.isRead}
-                        />
-                      </View>
-                    )}
-                  </View>
-                  
-                  <Text
-                    className="text-xs text-muted-foreground mt-1"
-                    style={{ alignSelf: message.isCurrentUser ? 'flex-end' : 'flex-start' }}
-                  >
-                    {formatTime(message.timestamp)}
-                  </Text>
-                </View>
-              );
-            }}
-          />
-        )}
-
-        <View className="border-t border-border px-2 py-1 bg-background">
-          <View className="flex-row items-center bg-muted rounded-2xl">
-            <View className="flex-row space-x-1 py-1 px-2">
-              <TouchableOpacity
-                className="p-2 android:p-1.5 android:m-0.5 rounded-full active:bg-muted-foreground/10"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Smile size={Platform.OS === 'android' ? 20 : 22} className="text-muted-foreground" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="p-2 android:p-1.5 android:m-0.5 rounded-full active:bg-muted-foreground/10"
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Paperclip size={Platform.OS === 'android' ? 20 : 22} className="text-muted-foreground" />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              className="flex-1 min-h-[40px] android:min-h-[44px] px-3 text-foreground"
-              placeholder="Type a message"
-              placeholderTextColor="#9ca3af"
-              value={message}
-              onChangeText={setMessage}
-              multiline
-              maxLength={500}
-            />
-            
-            {message.trim() !== '' && (
-              <TouchableOpacity
-                className="bg-primary w-10 h-10 android:w-11 android:h-11 rounded-full items-center justify-center m-1"
-                onPress={sendMessage}
-                activeOpacity={0.7}
-              >
-                <Send size={Platform.OS === 'android' ? 20 : 18} color="#ffffff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        className="flex-1 px-4"
+        contentContainerStyle={{ paddingBottom: 20 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        onLayout={() => flatListRef.current?.scrollToEnd()}
+      />
+      <View className="flex-row items-center p-4 border-t border-border">
+        <Text className="text-sm font-medium text-gray-900">
+          {user?.username || 'Anonymous'}
+        </Text>
+        <Input
+          value={newMessage}
+          onChangeText={(text) => {
+            setNewMessage(text);
+            if (text.endsWith('\n') && text.trim()) {
+              sendMessage();
+            }
+          }}
+          placeholder="Type a message..."
+          className="flex-1 mr-2"
+          multiline
+          numberOfLines={1}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="p-2"
+          onPress={sendMessage}
+          disabled={!newMessage.trim()}
+        >
+          <Send className="text-primary" size={24} />
+        </Button>
       </View>
     </KeyboardAvoidingView>
   );

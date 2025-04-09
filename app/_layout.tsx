@@ -11,15 +11,29 @@ import { PortalHost } from '@rn-primitives/portal';
 import { ThemeToggle } from '~/components/ThemeToggle';
 import { setAndroidNavigationBar } from '~/lib/android-navigation-bar';
 import { AuthProvider } from '~/lib/auth-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '~/components/ui/toast';
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
   colors: NAV_THEME.light,
 };
+
 const DARK_THEME: Theme = {
   ...DarkTheme,
   colors: NAV_THEME.dark,
 };
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    },
+  },
+});
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -52,37 +66,50 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
-      <AuthProvider>
-        <SafeAreaView style={{ flex: 1 }}>
-          <StatusBar
-            style={isDarkColorScheme ? 'light' : 'dark'}
-            backgroundColor="transparent"
-            translucent
-          />
-          <Stack>
-            <Stack.Screen
-              name="(auth)"
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="(app)"
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="index"
-              options={{
-                headerShown: false,
-              }}
-            />
-          </Stack>
-          <PortalHost />
-        </SafeAreaView>
-      </AuthProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={isDarkColorScheme ? DARK_THEME : LIGHT_THEME}>
+          <AuthProvider>
+            <ToastProvider>
+              <SafeAreaView style={{ flex: 1 }}>
+                <StatusBar
+                  style={isDarkColorScheme ? 'light' : 'dark'}
+                  backgroundColor="transparent"
+                  translucent
+                />
+                <Stack
+                  screenOptions={{
+                    animation: 'slide_from_right',
+                    animationDuration: 200,
+                  }}
+                >
+                  <Stack.Screen
+                    name="(auth)"
+                    options={{
+                      headerShown: false,
+                      animation: 'fade',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="(app)"
+                    options={{
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="index"
+                    options={{
+                      headerShown: false,
+                      animation: 'fade',
+                    }}
+                  />
+                </Stack>
+                <PortalHost />
+              </SafeAreaView>
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
