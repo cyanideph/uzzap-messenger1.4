@@ -98,10 +98,10 @@ export default function LoginScreen() {
           <CardFooter>
             <Button
               onPress={handleLogin}
-              loading={loading}
               className="w-full"
+              disabled={loading}
             >
-              Sign In
+              {loading ? <Loading /> : 'Sign In'}
             </Button>
           </CardFooter>
         </Card>
@@ -117,8 +117,6 @@ export default function LoginScreen() {
           </StyledText>
         </StyledView>
       </StyledView>
-
-      {loading && <Loading fullScreen />}
     </StyledKeyboardAvoidingView>
   );
 }
