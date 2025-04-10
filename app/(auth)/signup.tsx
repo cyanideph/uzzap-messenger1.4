@@ -61,7 +61,7 @@ export default function SignupScreen() {
       <StyledView className="flex-1 px-6">
         <StyledView className="items-center justify-center py-12">
           <StyledImage
-            source={require('@/assets/images/logo.png')}
+            source={require('~/assets/images/logo.png')}
             className="w-32 h-32"
             resizeMode="contain"
           />
